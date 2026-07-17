@@ -1,4 +1,4 @@
-package com.flowbase.engine.auth.domain;
+package com.flowbase.engine.tenant.domain;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;

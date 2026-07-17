@@ -1,6 +1,6 @@
-package com.flowbase.engine.auth.repository;
+package com.flowbase.engine.tenant.repository;
 
-import com.flowbase.engine.auth.domain.Tenant;
+import com.flowbase.engine.tenant.domain.Tenant;
 import org.jspecify.annotations.NonNull;
 import org.springframework.data.jpa.repository.JpaRepository;
 

@@ -1,7 +1,10 @@
-package com.flowbase.engine.config;
+package com.flowbase.engine.tenant.filter;
 
-import com.flowbase.engine.auth.domain.Tenant;
-import com.flowbase.engine.auth.repository.TenantRepository;
+import com.flowbase.engine.config.ErrorHelper;
+import com.flowbase.engine.config.TenantContext;
+import com.flowbase.engine.tenant.domain.Tenant;
+import com.flowbase.engine.tenant.repository.TenantRepository;
+import com.flowbase.engine.tenant.service.TenantService;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
@@ -17,7 +20,7 @@ import java.util.Optional;
 @Component
 @AllArgsConstructor
 public class TenantFilter extends OncePerRequestFilter {
-    private final TenantRepository tenantRepository;
+    private final TenantService tenantService;
     
     @Override
     protected void doFilterInternal(HttpServletRequest request, @NonNull HttpServletResponse response, @NonNull FilterChain filterChain) throws ServletException, IOException {
@@ -25,7 +28,7 @@ public class TenantFilter extends OncePerRequestFilter {
         if (apiKey == null || apiKey.isBlank()) {
             ErrorHelper.sendUnAuthorizedError(response, "Tenant api key missing!");
             return;
-        } Optional<Tenant> tenantExists = this.tenantRepository.findByApiKey(apiKey);
+        } Optional<Tenant> tenantExists = this.tenantService.findTenantByApiKey(apiKey);
         if (tenantExists.isEmpty()) {
             ErrorHelper.sendUnAuthorizedError(response, "Invalid Tenant API key!");
             return;

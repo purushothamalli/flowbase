@@ -1,7 +1,8 @@
 package com.flowbase.engine.config;
 
-import com.flowbase.engine.auth.domain.Tenant;
-import com.flowbase.engine.auth.repository.TenantRepository;
+import com.flowbase.engine.tenant.domain.Tenant;
+import com.flowbase.engine.tenant.repository.TenantRepository;
+import com.flowbase.engine.tenant.service.HashUtils;
 import lombok.AllArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.jspecify.annotations.NonNull;
@@ -17,13 +18,24 @@ public class DatabaseSeeder implements CommandLineRunner {
     @Override
     public void run(String @NonNull ... args) throws Exception {
         try {
-            if (!tenantRepository.existsById("default-tenant")) {
-                Tenant defaultTenant = new Tenant("default-tenant", "Default Sandbox", "fb_test_key_abc123");
+            String expectedHash = HashUtils.sha256("fb_test_key_abc123");
+            java.util.Optional<Tenant> existingTenant = tenantRepository.findById("default-tenant");
+            
+            if (existingTenant.isPresent()) {
+                Tenant tenant = existingTenant.get();
+                // If the key in the database is not the correct hash, update it:
+                if (!expectedHash.equals(tenant.apiKey())) {
+                    tenant.apiKey(expectedHash);
+                    tenantRepository.save(tenant);
+                    log.info("Outdated API key detected. Updated default-tenant to hashed key.");
+                }
+            } else {
+                Tenant defaultTenant = new Tenant("default-tenant", "Default Sandbox", expectedHash);
                 tenantRepository.save(defaultTenant);
-                log.info("Tenant Seeded successfully: {}", defaultTenant);
+                log.info("Seeded default-tenant successfully.");
             }
         } catch (Exception e) {
-            log.error(e.getMessage());
+            log.error("Database seeding failed: ", e);
         }
     }
 }
