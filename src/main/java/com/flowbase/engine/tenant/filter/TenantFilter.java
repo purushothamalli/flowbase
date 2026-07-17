@@ -11,6 +11,7 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.AllArgsConstructor;
 import org.jspecify.annotations.NonNull;
+import org.springframework.core.annotation.Order;
 import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
 
@@ -18,6 +19,7 @@ import java.io.IOException;
 import java.util.Optional;
 
 @Component
+@Order(1)
 @AllArgsConstructor
 public class TenantFilter extends OncePerRequestFilter {
     private final TenantService tenantService;

@@ -28,7 +28,7 @@ class AuthServiceImpl implements AuthService {
     @Override
     public UserResponse register(RegisterRequest request) {
         if (TenantContext.get() == null) throw new AuthenticationException("Active Tenant context required!");
-        if (userRepository.existsByEmail(request.email()))
+        if (userRepository.existsByTenantIdAndEmail(TenantContext.get(), request.email()))
             throw new UserAlreadyExistsException("Email already registered!");
         User newUser = new User(UUID.randomUUID()
                                     .toString(), TenantContext.get(), request.email(), this.passwordEncoder.encode(request.password()), request.role());
@@ -38,7 +38,7 @@ class AuthServiceImpl implements AuthService {
     
     @Override
     public LoginResponse login(LoginRequest request) {
-        Optional<User> userExists = this.userRepository.findByEmail(request.email());
+        Optional<User> userExists = this.userRepository.findByTenantIdAndEmail(TenantContext.get(), request.email());
         if (userExists.isEmpty()) throw new InvalidCredentialsException("Invalid email or password!");
         User user = userExists.get();
         if (!this.passwordEncoder.matches(request.password(), user.passwordHash()))

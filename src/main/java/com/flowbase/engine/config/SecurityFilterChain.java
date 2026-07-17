@@ -12,12 +12,14 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.AllArgsConstructor;
 import org.jspecify.annotations.NonNull;
+import org.springframework.core.annotation.Order;
 import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
 
 import java.io.IOException;
 
 @Component
+@Order(2)
 @AllArgsConstructor
 public class SecurityFilterChain extends OncePerRequestFilter {
     private final JwtService jwtService;
@@ -36,6 +38,9 @@ public class SecurityFilterChain extends OncePerRequestFilter {
             AuthenticatedUser user = this.jwtService.parseAndValidate(token);
             if (this.tokenBlacklistService.isRevoked(user.jti()))
                 throw new RevokedTokenException("This session has been revoked!");
+            if (!user.tenantId().equals(TenantContext.get())) {
+                throw new AuthenticationException("Token tenant scope does not match the active request context!");
+            }
             UserContext.set(user);
         } catch (AuthenticationException e) {
             ErrorHelper.sendUnAuthorizedError(response, e.getMessage());

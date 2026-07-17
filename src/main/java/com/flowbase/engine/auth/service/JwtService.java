@@ -34,6 +34,7 @@ public class JwtService {
                    .id(jti)
                    .subject(user.email())
                    .claim("userId", user.id())
+                   .claim("tenantId", user.tenantId())
                    .claim("role", user.role())
                    .issuedAt(Date.from(now))
                    .expiration(Date.from(expiry))
@@ -46,6 +47,7 @@ public class JwtService {
             Claims claims = Jwts.parser().verifyWith(this.secretKey).build().parseSignedClaims(token).getPayload();
             return new AuthenticatedUser(
                     claims.get("userId", String.class),
+                    claims.get("tenantId", String.class),
                     claims.getSubject(),
                     UserRole.valueOf(claims.get("role", String.class)),
                     claims.getId(),
