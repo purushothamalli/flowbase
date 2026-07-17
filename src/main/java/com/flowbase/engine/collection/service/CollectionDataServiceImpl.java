@@ -2,11 +2,11 @@ package com.flowbase.engine.collection.service;
 
 import com.flowbase.engine.collection.domain.Collection;
 import com.flowbase.engine.collection.domain.CollectionDocument;
+import com.flowbase.engine.collection.domain.CollectionDocumentRepository;
 import com.flowbase.engine.collection.domain.CollectionField;
+import com.flowbase.engine.collection.domain.CollectionRepository;
 import com.flowbase.engine.collection.exception.CollectionNotFoundException;
 import com.flowbase.engine.collection.exception.ValidationException;
-import com.flowbase.engine.collection.repository.CollectionDocumentRepository;
-import com.flowbase.engine.collection.repository.CollectionRepository;
 import com.flowbase.engine.common.service.IdGenerator;
 import lombok.AllArgsConstructor;
 import org.springframework.stereotype.Service;
