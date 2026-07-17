@@ -10,6 +10,9 @@ public class FlowbaseApplication {
     
     public static void main(String[] args) {
         try {
+            // Force Flyway to accept PostgreSQL 18.x
+            System.setProperty("flyway.ignoreUnsupportedDb", "true");
+            
             java.nio.file.Path envPath = java.nio.file.Paths.get(".env");
             if (java.nio.file.Files.exists(envPath)) {
                 java.nio.file.Files.readAllLines(envPath).forEach(line -> {
@@ -22,8 +25,8 @@ public class FlowbaseApplication {
                     }
                 });
             }
-        } catch (java.io.IOException e) {
-            System.err.println("Failed to load .env file: " + e.getMessage());
+        } catch (Exception e) {
+            System.err.println("Bootstrap failed: " + e.getMessage());
         }
         SpringApplication.run(FlowbaseApplication.class, args);
     }

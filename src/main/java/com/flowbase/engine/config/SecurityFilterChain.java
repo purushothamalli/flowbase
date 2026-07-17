@@ -38,7 +38,7 @@ public class SecurityFilterChain extends OncePerRequestFilter {
                 throw new RevokedTokenException("This session has been revoked!");
             UserContext.set(user);
         } catch (AuthenticationException e) {
-            this.sendUnAuthorizedError(response, e.getMessage());
+            ErrorHelper.sendUnAuthorizedError(response, e.getMessage());
             return;
         }
         try {
@@ -46,13 +46,5 @@ public class SecurityFilterChain extends OncePerRequestFilter {
         } finally {
             UserContext.clear();
         }
-    }
-    
-    private void sendUnAuthorizedError(HttpServletResponse response, String message) throws IOException {
-        response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
-        response.setContentType("application/json");
-        response.setCharacterEncoding("UTF-8");
-        String payload = String.format("{\"title\":\"Unauthorized\",\"status\":401,\"detail\":\"%s\"}", message);
-        response.getWriter().write(payload);
     }
 }
