@@ -7,6 +7,7 @@ import com.flowbase.engine.collection.exception.CollectionNotFoundException;
 import com.flowbase.engine.collection.exception.ValidationException;
 import com.flowbase.engine.collection.repository.CollectionDocumentRepository;
 import com.flowbase.engine.collection.repository.CollectionRepository;
+import com.flowbase.engine.common.service.IdGenerator;
 import lombok.AllArgsConstructor;
 import org.springframework.stereotype.Service;
 
@@ -14,13 +15,14 @@ import java.time.Instant;
 import java.util.Date;
 import java.util.Map;
 import java.util.Optional;
-import java.util.UUID;
+
 
 @Service
 @AllArgsConstructor
 class CollectionDataServiceImpl implements CollectionDataService {
     private final CollectionRepository collectionRepository;
     private final CollectionDocumentRepository collectionDocumentRepository;
+    private final IdGenerator idGenerator;
     
     @Override
     public CollectionDocument insertDocument(String collectionId, Map<String, Object> payload) {
@@ -54,7 +56,7 @@ class CollectionDataServiceImpl implements CollectionDataService {
         }
         
         CollectionDocument collectionDocument = new CollectionDocument(
-                UUID.randomUUID().toString(),
+                this.idGenerator.generate(),
                 collectionId,
                 payload,
                 Instant.now(),

@@ -10,12 +10,12 @@ import com.flowbase.engine.auth.exception.AuthenticationException;
 import com.flowbase.engine.auth.exception.InvalidCredentialsException;
 import com.flowbase.engine.auth.exception.UserAlreadyExistsException;
 import com.flowbase.engine.auth.repository.UserRepository;
+import com.flowbase.engine.common.service.IdGenerator;
 import com.flowbase.engine.config.TenantContext;
 import lombok.AllArgsConstructor;
 import org.springframework.stereotype.Service;
 
 import java.util.Optional;
-import java.util.UUID;
 
 @Service
 @AllArgsConstructor
@@ -24,14 +24,14 @@ class AuthServiceImpl implements AuthService {
     private final PasswordEncoder passwordEncoder;
     private final JwtService jwtService;
     private final TokenBlacklistService tokenBlacklistService;
+    private final IdGenerator idGenerator;
     
     @Override
     public UserResponse register(RegisterRequest request) {
         if (TenantContext.get() == null) throw new AuthenticationException("Active Tenant context required!");
         if (userRepository.existsByTenantIdAndEmail(TenantContext.get(), request.email()))
             throw new UserAlreadyExistsException("Email already registered!");
-        User newUser = new User(UUID.randomUUID()
-                                    .toString(), TenantContext.get(), request.email(), this.passwordEncoder.encode(request.password()), request.role());
+        User newUser = new User(this.idGenerator.generate(), TenantContext.get(), request.email(), this.passwordEncoder.encode(request.password()), request.role());
         this.userRepository.save(newUser);
         return new UserResponse(newUser.id(), newUser.email(), newUser.role());
     }
