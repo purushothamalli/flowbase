@@ -9,6 +9,7 @@ import com.flowbase.engine.collection.exception.CollectionNotFoundException;
 import com.flowbase.engine.collection.exception.DocumentNotFoundException;
 import com.flowbase.engine.collection.validation.ValidationRule;
 import com.flowbase.engine.common.service.IdGenerator;
+import com.flowbase.engine.config.TenantContext;
 import lombok.AllArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -51,21 +52,28 @@ class CollectionDataServiceImpl implements CollectionDataService {
     }
     
     @Override
-    public CollectionDocument getDocument(String id) {
-        Optional<CollectionDocument> documentExists = this.collectionDocumentRepository.findById(id);
-        if (documentExists.isEmpty()) throw new DocumentNotFoundException(id);
+    public CollectionDocument getDocument(String collectionId, String documentId) {
+        Optional<Collection> collectionExists = this.collectionRepository.findById(collectionId);
+        if (collectionExists.isEmpty() || !collectionExists.get().tenantId().equals(TenantContext.get()))
+            throw new CollectionNotFoundException(collectionId);
+        Optional<CollectionDocument> documentExists = this.collectionDocumentRepository.findById(documentId);
+        if (documentExists.isEmpty() || !documentExists.get().collectionId().equals(collectionExists.get().id()))
+            throw new DocumentNotFoundException(documentId);
         return documentExists.get();
     }
     
     @Override
     public List<CollectionDocument> findDocumentsByCollection(String collectionId) {
+        Optional<Collection> collectionExists = this.collectionRepository.findById(collectionId);
+        if (collectionExists.isEmpty() || !collectionExists.get().tenantId().equals(TenantContext.get()))
+            return List.of();
         return this.collectionDocumentRepository.findByCollectionId(collectionId);
     }
     
     @Override
     @Transactional
-    public CollectionDocument updateDocument(String id, Map<String, Object> payload) {
-        CollectionDocument document = this.getDocument(id);
+    public CollectionDocument updateDocument(String collectionId, String documentId, Map<String, Object> payload) {
+        CollectionDocument document = this.getDocument(collectionId, documentId);
         Optional<Collection> collectionExists = this.collectionRepository.findById(document.collectionId());
         if (collectionExists.isEmpty()) throw new CollectionNotFoundException(document.collectionId());
         Map<String, Object> data = document.data();
@@ -84,8 +92,8 @@ class CollectionDataServiceImpl implements CollectionDataService {
     
     @Override
     @Transactional
-    public void deleteDocument(String id) {
-        CollectionDocument document = this.getDocument(id);
+    public void deleteDocument(String collectionId, String documentId) {
+        CollectionDocument document = this.getDocument(collectionId, documentId);
         this.collectionDocumentRepository.delete(document);
     }
 }
