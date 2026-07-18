@@ -1,7 +1,7 @@
 package com.flowbase.engine.collection.exception;
 
 public class CollectionNotFoundException extends CollectionException {
-    public CollectionNotFoundException(String message) {
-        super(message);
+    public CollectionNotFoundException(String id) {
+        super("Collection with ID '" + id + "' not found!");
     }
 }

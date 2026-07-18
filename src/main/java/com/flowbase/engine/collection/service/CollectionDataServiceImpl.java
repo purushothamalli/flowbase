@@ -6,7 +6,7 @@ import com.flowbase.engine.collection.domain.CollectionDocumentRepository;
 import com.flowbase.engine.collection.domain.CollectionField;
 import com.flowbase.engine.collection.domain.CollectionRepository;
 import com.flowbase.engine.collection.exception.CollectionNotFoundException;
-import com.flowbase.engine.collection.exception.ValidationException;
+import com.flowbase.engine.collection.exception.DocumentNotFoundException;
 import com.flowbase.engine.collection.validation.ValidationRule;
 import com.flowbase.engine.common.service.IdGenerator;
 import lombok.AllArgsConstructor;
@@ -14,7 +14,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
-import java.util.Date;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -32,7 +32,7 @@ class CollectionDataServiceImpl implements CollectionDataService {
     @Transactional
     public CollectionDocument insertDocument(String collectionId, Map<String, Object> payload) {
         Optional<Collection> collectionExists = this.collectionRepository.findById(collectionId);
-        if (collectionExists.isEmpty()) throw new CollectionNotFoundException("Collection with given Id not found!");
+        if (collectionExists.isEmpty()) throw new CollectionNotFoundException(collectionId);
         Collection collection = collectionExists.get();
         for (CollectionField field : collection.fields()) {
             Object value = payload.get(field.name());
@@ -40,7 +40,6 @@ class CollectionDataServiceImpl implements CollectionDataService {
                 rule.validate(field, value);
             }
         }
-        
         CollectionDocument collectionDocument = new CollectionDocument(
                 this.idGenerator.generate(),
                 collectionId,
@@ -49,5 +48,44 @@ class CollectionDataServiceImpl implements CollectionDataService {
                 Instant.now()
         );
         return this.collectionDocumentRepository.save(collectionDocument);
+    }
+    
+    @Override
+    public CollectionDocument getDocument(String id) {
+        Optional<CollectionDocument> documentExists = this.collectionDocumentRepository.findById(id);
+        if (documentExists.isEmpty()) throw new DocumentNotFoundException(id);
+        return documentExists.get();
+    }
+    
+    @Override
+    public List<CollectionDocument> findDocumentsByCollection(String collectionId) {
+        return this.collectionDocumentRepository.findByCollectionId(collectionId);
+    }
+    
+    @Override
+    @Transactional
+    public CollectionDocument updateDocument(String id, Map<String, Object> payload) {
+        CollectionDocument document = this.getDocument(id);
+        Optional<Collection> collectionExists = this.collectionRepository.findById(document.collectionId());
+        if (collectionExists.isEmpty()) throw new CollectionNotFoundException(document.collectionId());
+        Map<String, Object> data = document.data();
+        Map<String, Object> merged = new HashMap<>(data);
+        merged.putAll(payload);
+        for (CollectionField field : collectionExists.get().fields()) {
+            Object value = merged.get(field.name());
+            for (ValidationRule rule : this.validationRules) {
+                rule.validate(field, value);
+            }
+        }
+        document.data(merged);
+        document.updatedAt(Instant.now());
+        return this.collectionDocumentRepository.save(document);
+    }
+    
+    @Override
+    @Transactional
+    public void deleteDocument(String id) {
+        CollectionDocument document = this.getDocument(id);
+        this.collectionDocumentRepository.delete(document);
     }
 }
