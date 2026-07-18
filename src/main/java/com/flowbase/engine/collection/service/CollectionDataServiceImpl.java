@@ -11,6 +11,7 @@ import com.flowbase.engine.collection.validation.ValidationRule;
 import com.flowbase.engine.common.service.IdGenerator;
 import lombok.AllArgsConstructor;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
 import java.util.Date;
@@ -28,6 +29,7 @@ class CollectionDataServiceImpl implements CollectionDataService {
     private final List<ValidationRule> validationRules;
     
     @Override
+    @Transactional
     public CollectionDocument insertDocument(String collectionId, Map<String, Object> payload) {
         Optional<Collection> collectionExists = this.collectionRepository.findById(collectionId);
         if (collectionExists.isEmpty()) throw new CollectionNotFoundException("Collection with given Id not found!");

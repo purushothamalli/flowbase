@@ -1,7 +1,8 @@
 package com.flowbase.engine.collection.validation;
 
 import com.flowbase.engine.collection.domain.CollectionField;
-import com.flowbase.engine.collection.exception.ValidationException;
+import com.flowbase.engine.collection.exception.FieldTypeMismatchException;
+import com.flowbase.engine.collection.exception.MissingRequiredFieldException;
 import org.springframework.stereotype.Component;
 
 import java.time.Instant;
@@ -10,7 +11,7 @@ import java.util.Date;
 @Component
 public class TypeValidationRule implements ValidationRule {
     @Override
-    public void validate(CollectionField field, Object value) throws ValidationException {
+    public void validate(CollectionField field, Object value) throws MissingRequiredFieldException {
         if (value == null) return;
         boolean match = switch (field.type()) {
             case STRING -> value instanceof String;
@@ -28,8 +29,6 @@ public class TypeValidationRule implements ValidationRule {
                 yield value instanceof Date || value instanceof Instant;
             }
         }; if (!match)
-            throw new ValidationException("Type mismatch for: " + field.name() + " Expected Type: " + field.type() +
-                    " but received: " + value
-                                                                                                                                                .getClass());
+            throw new FieldTypeMismatchException(field.name(), field.type().toString(), value.getClass().getTypeName());
     }
 }
