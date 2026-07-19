@@ -26,6 +26,10 @@ public class TenantFilter extends OncePerRequestFilter {
     
     @Override
     protected void doFilterInternal(HttpServletRequest request, @NonNull HttpServletResponse response, @NonNull FilterChain filterChain) throws ServletException, IOException {
+        if (request.getRequestURI().equals("/v1/tenants") && request.getMethod().equals("POST")) {
+            filterChain.doFilter(request, response);
+            return;
+        }
         String apiKey = request.getHeader("X-FlowBase-API-Key");
         if (apiKey == null || apiKey.isBlank()) {
             ErrorHelper.sendUnAuthorizedError(response, "Tenant api key missing!");

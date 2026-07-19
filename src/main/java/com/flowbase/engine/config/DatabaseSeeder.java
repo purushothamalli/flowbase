@@ -9,7 +9,7 @@ import org.jspecify.annotations.NonNull;
 import org.springframework.boot.CommandLineRunner;
 import org.springframework.stereotype.Component;
 
-@Component
+//@Component
 @AllArgsConstructor
 @Slf4j
 public class DatabaseSeeder implements CommandLineRunner {

@@ -14,6 +14,7 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.servlet.support.ServletUriComponentsBuilder;
 import org.springframework.web.util.UriBuilder;
 
 import java.util.List;
@@ -27,7 +28,13 @@ class CollectionController {
     @PostMapping
     ResponseEntity<CollectionResponse> createCollection(@RequestBody CreateCollectionRequest request) {
         CollectionResponse response = this.collectionService.createCollection(request);
-        return ResponseEntity.status(HttpStatus.CREATED).body(response);
+        return ResponseEntity
+                .created(ServletUriComponentsBuilder
+                        .fromCurrentRequest()
+                        .path("/{id}")
+                        .buildAndExpand(response.id())
+                        .toUri()
+                ).body(response);
     }
     
     @GetMapping
@@ -38,13 +45,11 @@ class CollectionController {
     
     @GetMapping("/{id}")
     ResponseEntity<CollectionResponse> getCollection(@PathVariable String id) {
-        CollectionResponse response = this.collectionService.getCollection(id);
-        return ResponseEntity.ok(response);
+        CollectionResponse response = this.collectionService.getCollection(id); return ResponseEntity.ok(response);
     }
     
     @DeleteMapping("/{id}")
     ResponseEntity<Void> deleteCollection(@PathVariable String id) {
-        this.collectionService.deleteCollection(id);
-        return ResponseEntity.noContent().build();
+        this.collectionService.deleteCollection(id); return ResponseEntity.noContent().build();
     }
 }
