@@ -2,7 +2,10 @@ package com.flowbase.engine.collection.controller;
 
 import com.flowbase.engine.collection.domain.CollectionDocument;
 import com.flowbase.engine.collection.dto.CollectionDocumentResponse;
+import com.flowbase.engine.collection.query.QueryContext;
+import com.flowbase.engine.collection.query.QueryParser;
 import com.flowbase.engine.collection.service.CollectionDataService;
+import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -24,6 +27,7 @@ import java.util.Map;
 @RequestMapping("/v1/data/{collectionId}")
 class CollectionDataController {
     private final CollectionDataService collectionDataService;
+    private final QueryParser queryParser;
     
     @PostMapping
     public ResponseEntity<CollectionDocumentResponse> createDocument(@PathVariable String collectionId, @RequestBody Map<String, Object> payload) {
@@ -44,8 +48,12 @@ class CollectionDataController {
     }
     
     @GetMapping
-    public ResponseEntity<List<CollectionDocumentResponse>> listDocuments(@PathVariable String collectionId) {
-        List<CollectionDocument> collectionDocuments = this.collectionDataService.findDocumentsByCollection(collectionId);
+    public ResponseEntity<List<CollectionDocumentResponse>> listDocuments(@PathVariable String collectionId,
+                                                                          HttpServletRequest request) {
+        Map<String, String[]> parameterMap = request.getParameterMap();
+        QueryContext queryContext = this.queryParser.parse(parameterMap);
+        List<CollectionDocument> collectionDocuments =
+                this.collectionDataService.findDocumentsByCollection(collectionId, queryContext);
         return ResponseEntity.ok(collectionDocuments.stream().map(this::mapToResponse).toList());
     }
     
