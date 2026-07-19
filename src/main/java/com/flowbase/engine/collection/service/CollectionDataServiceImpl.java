@@ -14,12 +14,15 @@ import com.flowbase.engine.collection.validation.ValidationRule;
 import com.flowbase.engine.common.service.IdGenerator;
 import com.flowbase.engine.config.TenantContext;
 import lombok.AllArgsConstructor;
+import org.jspecify.annotations.NonNull;
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import tools.jackson.core.type.TypeReference;
 import tools.jackson.databind.ObjectMapper;
 
+import java.sql.ResultSet;
+import java.sql.SQLException;
 import java.time.Instant;
 import java.util.HashMap;
 import java.util.List;
@@ -108,18 +111,39 @@ class CollectionDataServiceImpl implements CollectionDataService {
         }
         return this.jdbcTemplate.query(sql.toString(), paramMap, (rs, rowNum) -> {
             try {
-                String id = rs.getString("id");
-                String collectionId1 = rs.getString("collection_id");
-                String rawData = rs.getString("data");
-                Map<String, Object> data = this.objectMapper.readValue(rawData, new TypeReference<Map<String, Object>>() {});
-                Instant createdAt = rs.getTimestamp("created_at").toInstant();
-                Instant updatedAt = rs.getTimestamp("updated_at").toInstant();
-                return new CollectionDocument(id, collectionId1, data, createdAt, updatedAt);
+                return getCollectionDocument(rs);
             } catch (Exception e) {
                 throw new RuntimeException("Failed to map document row: ", e);
             }
         });
-//        return this.collectionDocumentRepository.findByCollectionId(collectionId);
+    }
+    
+    @Override
+    public List<CollectionDocument> searchDocuments(String collectionId, String searchQuery, int limit, int offset) {
+        Optional<Collection> collectionExists = this.collectionRepository.findById(collectionId);
+        if (collectionExists.isEmpty() || !collectionExists.get().tenantId().equals(TenantContext.get()))
+            return List.of();
+        int safeLimit = limit <= 0 ? 20 : Math.clamp(limit, 1, 100);
+        int safeOffset = Math.max(0, offset);
+        String sql = "SELECT id, collection_id, data, created_at, updated_at, " +
+                " ts_rank(tsv_document, query) as rank " +
+                "FROM collection_documents, websearch_to_tsquery('english', :search_query) query " +
+                "WHERE collection_id = :collectionId_const " +
+                "  AND tsv_document @@ query " +
+                "ORDER BY rank DESC " +
+                "LIMIT :limit_const OFFSET :offset_const";
+        Map<String, Object> paramMap = new HashMap<>();
+        paramMap.put("collectionId_const", collectionId);
+        paramMap.put("search_query", searchQuery);
+        paramMap.put("limit_const", safeLimit);
+        paramMap.put("offset_const", safeOffset);
+        return this.jdbcTemplate.query(sql, paramMap, (rs, rowNum) -> {
+            try {
+                return this.getCollectionDocument(rs);
+            } catch (Exception e) {
+                throw new RuntimeException("Failed to map search document row: ", e);
+            }
+        });
     }
     
     @Override
@@ -148,4 +172,16 @@ class CollectionDataServiceImpl implements CollectionDataService {
         CollectionDocument document = this.getDocument(collectionId, documentId);
         this.collectionDocumentRepository.delete(document);
     }
+    
+    @NonNull
+    private CollectionDocument getCollectionDocument(ResultSet rs) throws SQLException {
+        String id = rs.getString("id");
+        String collId = rs.getString("collection_id");
+        String rawData = rs.getString("data");
+        Map<String, Object> data = this.objectMapper.readValue(rawData, new TypeReference<Map<String, Object>>() {});
+        Instant createdAt = rs.getTimestamp("created_at").toInstant();
+        Instant updatedAt = rs.getTimestamp("updated_at").toInstant();
+        return new CollectionDocument(id, collId, data, createdAt, updatedAt);
+    }
 }
+

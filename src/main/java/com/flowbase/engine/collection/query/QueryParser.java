@@ -15,7 +15,7 @@ public class QueryParser {
     
     public QueryContext parse(Map<String, String[]> parameterMap) {
         String sortBy = "";
-        int limit = 0, offset = 0;
+        int limit = 20, offset = 0;
         List<QueryFilter> filters = new ArrayList<>();
         for (Map.Entry<String, String[]> entry : parameterMap.entrySet()) {
             String key = entry.getKey();
@@ -27,11 +27,11 @@ public class QueryParser {
                 continue;
             }
             if (key.equals("_limit")) {
-                limit = Integer.parseInt(rawValue);
+                limit = Math.clamp(Integer.parseInt(rawValue), 1, 100);
                 continue;
             }
             if (key.equals("_offset")) {
-                offset = Integer.parseInt(rawValue);
+                offset = Math.max(0, Integer.parseInt(rawValue));
                 continue;
             }
             Matcher matcher = BRACKET_PATTERN.matcher(key);

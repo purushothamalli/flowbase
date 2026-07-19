@@ -13,6 +13,8 @@ public interface CollectionDataService {
     
     List<CollectionDocument> findDocumentsByCollection(String collectionId, QueryContext queryContext);
     
+    List<CollectionDocument> searchDocuments(String collectionId, String searchQuery, int limit, int offset);
+    
     CollectionDocument updateDocument(String collectionId, String id, Map<String, Object> payload);
     
     void deleteDocument(String collectionId, String id);
