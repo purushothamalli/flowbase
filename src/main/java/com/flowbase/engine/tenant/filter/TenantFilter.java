@@ -26,7 +26,7 @@ public class TenantFilter extends OncePerRequestFilter {
     
     @Override
     protected void doFilterInternal(HttpServletRequest request, @NonNull HttpServletResponse response, @NonNull FilterChain filterChain) throws ServletException, IOException {
-        if (request.getRequestURI().equals("/v1/tenants") && request.getMethod().equals("POST")) {
+        if ((request.getRequestURI().equals("/v1/tenants") && request.getMethod().equals("POST")) || request.getRequestURI().equals("/v1/realtime")) {
             filterChain.doFilter(request, response);
             return;
         }
