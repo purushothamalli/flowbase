@@ -34,7 +34,10 @@ class CollectionServiceImpl implements CollectionService {
             throw new ValidationException("Collection name " + request.name() + " already exists in this workspace!");
         Collection collection = new Collection().id(this.idGenerator.generate())
                                                 .tenantId(tenantId)
-                                                .name(request.name()); List<CollectionField> fields = new ArrayList<>();
+                                                .name(request.name())
+                                                .readRule(request.readRule())
+                                                .writeRule(request.writeRule());
+        List<CollectionField> fields = new ArrayList<>();
         for (CollectionFieldRequest fieldRequest : request.fields()) {
             CollectionField field = new CollectionField(this.idGenerator.generate(), fieldRequest.name(), fieldRequest.type(), fieldRequest.required(), collection);
             fields.add(field);
@@ -51,7 +54,8 @@ class CollectionServiceImpl implements CollectionService {
                                                                               .stream()
                                                                               .map(this::createCollectionFieldResponse)
                                                                               .toList();
-        return new CollectionResponse(collection.id(), collection.name(), collectionFieldResponseList);
+        return new CollectionResponse(collection.id(), collection.name(), collection.readRule(),
+                collection.writeRule(), collectionFieldResponseList);
     }
     
     @Override

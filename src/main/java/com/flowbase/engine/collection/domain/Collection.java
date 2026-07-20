@@ -1,5 +1,6 @@
 package com.flowbase.engine.collection.domain;
 
+import jakarta.annotation.Nullable;
 import jakarta.persistence.CascadeType;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -27,6 +28,12 @@ public class Collection {
     private String tenantId;
     @Column(name = "NAME")
     private String name;
+    @Nullable
+    @Column(name = "READ_RULE")
+    private String readRule;
+    @Nullable
+    @Column(name = "WRITE_RULE")
+    private String writeRule;
     @OneToMany(mappedBy = "collection", cascade = CascadeType.ALL, orphanRemoval = true, targetEntity = CollectionField.class)
     private List<CollectionField> fields;
 }
