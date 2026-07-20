@@ -7,6 +7,7 @@ import lombok.experimental.Accessors;
 import org.springframework.context.ApplicationEvent;
 
 @Getter
+@Accessors(fluent = true)
 public class DocumentChangeEvent extends ApplicationEvent {
     private final String action;
     private final String collectionId;
