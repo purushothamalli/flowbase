@@ -1,10 +1,12 @@
 package com.flowbase.engine.collection.service;
 
+import com.flowbase.engine.auth.dto.AuthenticatedUser;
 import com.flowbase.engine.collection.domain.Collection;
 import com.flowbase.engine.collection.domain.CollectionDocument;
 import com.flowbase.engine.collection.domain.CollectionDocumentRepository;
 import com.flowbase.engine.collection.domain.CollectionField;
 import com.flowbase.engine.collection.domain.CollectionRepository;
+import com.flowbase.engine.collection.exception.AclDeniedException;
 import com.flowbase.engine.collection.exception.CollectionNotFoundException;
 import com.flowbase.engine.collection.exception.DocumentNotFoundException;
 import com.flowbase.engine.collection.query.CompiledQuery;
@@ -13,6 +15,7 @@ import com.flowbase.engine.collection.query.QueryContext;
 import com.flowbase.engine.collection.validation.ValidationRule;
 import com.flowbase.engine.common.service.IdGenerator;
 import com.flowbase.engine.config.TenantContext;
+import com.flowbase.engine.config.UserContext;
 import lombok.AllArgsConstructor;
 import org.jspecify.annotations.NonNull;
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
@@ -45,14 +48,18 @@ class CollectionDataServiceImpl implements CollectionDataService {
     private final QueryCompiler queryCompiler;
     private final ObjectMapper objectMapper;
     private final CacheService cacheService;
+    private final AclEvaluatorService aclEvaluatorService;
     
     @Override
     @Transactional
     public CollectionDocument insertDocument(String collectionId, Map<String, Object> payload) {
         Optional<Collection> collectionExists = this.collectionRepository.findById(collectionId);
         if (collectionExists.isEmpty()) throw new CollectionNotFoundException(collectionId);
-        Collection collection = collectionExists.get(); for (CollectionField field : collection.fields()) {
-            Object value = payload.get(field.name()); for (ValidationRule rule : this.validationRules) {
+        Collection collection = collectionExists.get();
+        this.aclEvaluation(collection, payload);
+        for (CollectionField field : collection.fields()) {
+            Object value = payload.get(field.name());
+            for (ValidationRule rule : this.validationRules) {
                 rule.validate(field, value);
             }
         }
@@ -135,8 +142,12 @@ class CollectionDataServiceImpl implements CollectionDataService {
         CollectionDocument document = this.getDocument(collectionId, documentId);
         Optional<Collection> collectionExists = this.collectionRepository.findById(document.collectionId());
         if (collectionExists.isEmpty()) throw new CollectionNotFoundException(document.collectionId());
-        Map<String, Object> data = document.data(); Map<String, Object> merged = new HashMap<>(data);
-        merged.putAll(payload); for (CollectionField field : collectionExists.get().fields()) {
+        Collection collection = collectionExists.get();
+        Map<String, Object> data = document.data();
+        Map<String, Object> merged = new HashMap<>(data);
+        merged.putAll(payload);
+        this.aclEvaluation(collection, merged);
+        for (CollectionField field : collectionExists.get().fields()) {
             Object value = merged.get(field.name()); for (ValidationRule rule : this.validationRules) {
                 rule.validate(field, value);
             }
@@ -199,6 +210,14 @@ class CollectionDataServiceImpl implements CollectionDataService {
                 if (cached != null) return cached; retries--;
             } return dbQuerySupplier.get();
         }
+    }
+    
+    private void aclEvaluation(Collection collection, Map<String, Object> payload) {
+        AuthenticatedUser user = UserContext.get();
+        String userId = user != null ? user.id() : null;
+        String userRole = user != null ? user.role().name() : null;
+        if (!this.aclEvaluatorService.evaluate(collection.writeRule(), payload, userId, userRole))
+            throw new AclDeniedException("Write access denied by ACL policy.");
     }
 }
 
