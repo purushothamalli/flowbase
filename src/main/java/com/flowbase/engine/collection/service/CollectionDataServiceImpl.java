@@ -16,8 +16,10 @@ import com.flowbase.engine.collection.validation.ValidationRule;
 import com.flowbase.engine.common.service.IdGenerator;
 import com.flowbase.engine.config.TenantContext;
 import com.flowbase.engine.config.UserContext;
+import com.flowbase.engine.realtime.event.DocumentChangeEvent;
 import lombok.AllArgsConstructor;
 import org.jspecify.annotations.NonNull;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -49,6 +51,7 @@ class CollectionDataServiceImpl implements CollectionDataService {
     private final ObjectMapper objectMapper;
     private final CacheService cacheService;
     private final AclEvaluatorService aclEvaluatorService;
+    private final ApplicationEventPublisher eventPublisher;
     
     @Override
     @Transactional
@@ -63,7 +66,9 @@ class CollectionDataServiceImpl implements CollectionDataService {
         }
         CollectionDocument collectionDocument = new CollectionDocument(this.idGenerator.generate(), collectionId, payload, Instant.now(), Instant.now());
         this.cacheService.evictNamespace("flowbase:cache:" + collectionId + ":");
-        return this.collectionDocumentRepository.save(collectionDocument);
+        CollectionDocument saved = this.collectionDocumentRepository.save(collectionDocument);
+        this.eventPublisher.publishEvent(new DocumentChangeEvent(this, "insert", collectionId, saved));
+        return saved;
     }
     
     @Override
@@ -153,7 +158,9 @@ class CollectionDataServiceImpl implements CollectionDataService {
             }
         } document.data(merged); document.updatedAt(Instant.now());
         this.cacheService.evictNamespace("flowbase:cache:" + collectionId + ":");
-        return this.collectionDocumentRepository.save(document);
+        CollectionDocument updated = this.collectionDocumentRepository.save(document);
+        this.eventPublisher.publishEvent(new DocumentChangeEvent(this, "update", collectionId, updated));
+        return updated;
     }
     
     @Override
@@ -164,6 +171,7 @@ class CollectionDataServiceImpl implements CollectionDataService {
         if (collectionExists.isEmpty()) throw new CollectionNotFoundException(document.collectionId());
         this.aclEvaluation(collectionExists.get(), document.data()); this.collectionDocumentRepository.delete(document);
         this.cacheService.evictNamespace("flowbase:cache:" + collectionId + ":");
+        this.eventPublisher.publishEvent(new DocumentChangeEvent(this, "delete", collectionId, document));
     }
     
     @NonNull
