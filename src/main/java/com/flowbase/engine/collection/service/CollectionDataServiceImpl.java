@@ -55,11 +55,9 @@ class CollectionDataServiceImpl implements CollectionDataService {
     public CollectionDocument insertDocument(String collectionId, Map<String, Object> payload) {
         Optional<Collection> collectionExists = this.collectionRepository.findById(collectionId);
         if (collectionExists.isEmpty()) throw new CollectionNotFoundException(collectionId);
-        Collection collection = collectionExists.get();
-        this.aclEvaluation(collection, payload);
+        Collection collection = collectionExists.get(); this.aclEvaluation(collection, payload);
         for (CollectionField field : collection.fields()) {
-            Object value = payload.get(field.name());
-            for (ValidationRule rule : this.validationRules) {
+            Object value = payload.get(field.name()); for (ValidationRule rule : this.validationRules) {
                 rule.validate(field, value);
             }
         }
@@ -84,9 +82,11 @@ class CollectionDataServiceImpl implements CollectionDataService {
         if (collectionExists.isEmpty() || !collectionExists.get().tenantId().equals(TenantContext.get()))
             return List.of(); Collection collection = collectionExists.get();
         String cacheKey = this.keyGenerator(collectionId, "list", queryContext.filters(), queryContext.sortBy(), queryContext.limit());
-        List<CollectionDocument> cached = this.cacheService.getList(cacheKey, CollectionDocument.class);
-        if (cached != null) return cached;
-        CompiledQuery compiled = this.queryCompiler.compile(collection, queryContext);
+        boolean bypassCache = collection.readRule() != null && collection.readRule().contains("#auth");
+        if (!bypassCache) {
+            List<CollectionDocument> cached = this.cacheService.getList(cacheKey, CollectionDocument.class);
+            if (cached != null) return this.filterDocuments(collection, cached);
+        } CompiledQuery compiled = this.queryCompiler.compile(collection, queryContext);
         StringBuilder sql = new StringBuilder("SELECT ID, COLLECTION_ID, DATA, CREATED_AT, UPDATED_AT FROM COLLECTION_DOCUMENTS WHERE " + compiled.sql());
         Map<String, Object> paramMap = new HashMap<>(compiled.params()); if (!queryContext.sortBy().isEmpty()) {
             String sortQuery = queryContext.sortBy().trim(); String sortOrder = "ASC";
@@ -106,34 +106,37 @@ class CollectionDataServiceImpl implements CollectionDataService {
         } if (queryContext.offset() > 0) {
             sql.append(" OFFSET :offset_const"); paramMap.put("offset_const", queryContext.offset());
         }
-        return this.getDocumentsWithStampedeProtection(cacheKey, () -> this.jdbcTemplate.query(sql.toString(), paramMap, (rs, rowNum) -> {
+        return this.filterDocuments(collection, this.getDocumentsWithStampedeProtection(cacheKey, bypassCache, () -> this.jdbcTemplate.query(sql.toString(), paramMap, (rs, rowNum) -> {
             try {
                 return getCollectionDocument(rs);
             } catch (Exception e) {
                 throw new RuntimeException("Failed to map document row: ", e);
             }
-        }));
+        })));
     }
     
     @Override
     public List<CollectionDocument> searchDocuments(String collectionId, String searchQuery, int limit, int offset) {
         Optional<Collection> collectionExists = this.collectionRepository.findById(collectionId);
         if (collectionExists.isEmpty() || !collectionExists.get().tenantId().equals(TenantContext.get()))
-            return List.of(); String cacheKey = this.keyGenerator(collectionId, "search", searchQuery, limit, offset);
-        List<CollectionDocument> cached = this.cacheService.getList(cacheKey, CollectionDocument.class);
-        if (cached != null) return cached; int safeLimit = limit <= 0 ? 20 : Math.clamp(limit, 1, 100);
-        int safeOffset = Math.max(0, offset);
+            return List.of(); Collection collection = collectionExists.get();
+        String cacheKey = this.keyGenerator(collectionId, "search", searchQuery, limit, offset);
+        boolean bypassCache = collection.readRule() != null && collection.readRule().contains("#auth");
+        if (!bypassCache) {
+            List<CollectionDocument> cached = this.cacheService.getList(cacheKey, CollectionDocument.class);
+            if (cached != null) return this.filterDocuments(collection, cached);
+        } int safeLimit = limit <= 0 ? 20 : Math.clamp(limit, 1, 100); int safeOffset = Math.max(0, offset);
         String sql = "SELECT id, collection_id, data, created_at, updated_at, " + " ts_rank(tsv_document, query) as rank " + "FROM collection_documents, websearch_to_tsquery('english', :search_query) query " + "WHERE collection_id = :collectionId_const " + "  AND tsv_document @@ query " + "ORDER BY rank DESC " + "LIMIT :limit_const OFFSET :offset_const";
         Map<String, Object> paramMap = new HashMap<>(); paramMap.put("collectionId_const", collectionId);
         paramMap.put("search_query", searchQuery); paramMap.put("limit_const", safeLimit);
         paramMap.put("offset_const", safeOffset);
-        return this.getDocumentsWithStampedeProtection(cacheKey, () -> this.jdbcTemplate.query(sql, paramMap, (rs, rowNum) -> {
+        return this.filterDocuments(collection, this.getDocumentsWithStampedeProtection(cacheKey, bypassCache, () -> this.jdbcTemplate.query(sql, paramMap, (rs, rowNum) -> {
             try {
                 return getCollectionDocument(rs);
             } catch (Exception e) {
                 throw new RuntimeException("Failed to map document row: ", e);
             }
-        }));
+        })));
     }
     
     @Override
@@ -142,12 +145,9 @@ class CollectionDataServiceImpl implements CollectionDataService {
         CollectionDocument document = this.getDocument(collectionId, documentId);
         Optional<Collection> collectionExists = this.collectionRepository.findById(document.collectionId());
         if (collectionExists.isEmpty()) throw new CollectionNotFoundException(document.collectionId());
-        Collection collection = collectionExists.get();
-        Map<String, Object> data = document.data();
-        Map<String, Object> merged = new HashMap<>(data);
-        merged.putAll(payload);
-        this.aclEvaluation(collection, merged);
-        for (CollectionField field : collectionExists.get().fields()) {
+        Collection collection = collectionExists.get(); Map<String, Object> data = document.data();
+        Map<String, Object> merged = new HashMap<>(data); merged.putAll(payload);
+        this.aclEvaluation(collection, merged); for (CollectionField field : collectionExists.get().fields()) {
             Object value = merged.get(field.name()); for (ValidationRule rule : this.validationRules) {
                 rule.validate(field, value);
             }
@@ -160,7 +160,9 @@ class CollectionDataServiceImpl implements CollectionDataService {
     @Transactional
     public void deleteDocument(String collectionId, String documentId) {
         CollectionDocument document = this.getDocument(collectionId, documentId);
-        this.collectionDocumentRepository.delete(document);
+        Optional<Collection> collectionExists = this.collectionRepository.findById(document.collectionId());
+        if (collectionExists.isEmpty()) throw new CollectionNotFoundException(document.collectionId());
+        this.aclEvaluation(collectionExists.get(), document.data()); this.collectionDocumentRepository.delete(document);
         this.cacheService.evictNamespace("flowbase:cache:" + collectionId + ":");
     }
     
@@ -189,7 +191,8 @@ class CollectionDataServiceImpl implements CollectionDataService {
         }
     }
     
-    private List<CollectionDocument> getDocumentsWithStampedeProtection(String cacheKey, Supplier<List<CollectionDocument>> dbQuerySupplier) {
+    private List<CollectionDocument> getDocumentsWithStampedeProtection(String cacheKey, boolean bypassCache, Supplier<List<CollectionDocument>> dbQuerySupplier) {
+        if (bypassCache) return dbQuerySupplier.get();
         List<CollectionDocument> cached = this.cacheService.getList(cacheKey, CollectionDocument.class);
         if (cached != null) return cached; String lockKey = cacheKey + ":lock";
         String lockValue = UUID.randomUUID().toString(); if (this.cacheService.acquireLock(lockKey, lockValue, 5)) {
@@ -213,11 +216,20 @@ class CollectionDataServiceImpl implements CollectionDataService {
     }
     
     private void aclEvaluation(Collection collection, Map<String, Object> payload) {
-        AuthenticatedUser user = UserContext.get();
-        String userId = user != null ? user.id() : null;
+        AuthenticatedUser user = UserContext.get(); String userId = user != null ? user.id() : null;
         String userRole = user != null ? user.role().name() : null;
         if (!this.aclEvaluatorService.evaluate(collection.writeRule(), payload, userId, userRole))
             throw new AclDeniedException("Write access denied by ACL policy.");
+    }
+    
+    private List<CollectionDocument> filterDocuments(Collection collection, List<CollectionDocument> documents) {
+        if (collection.readRule() == null || collection.readRule().isEmpty() || documents.isEmpty()) return documents;
+        AuthenticatedUser currentUser = UserContext.get();
+        String userId = currentUser != null ? currentUser.id() : null;
+        String userRole = currentUser != null && currentUser.role() != null ? currentUser.role().name() : null;
+        return documents.stream()
+                        .filter(doc -> this.aclEvaluatorService.evaluate(collection.readRule(), doc.data(), userId, userRole))
+                        .toList();
     }
 }
 
