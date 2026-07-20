@@ -1,3 +1,3 @@
 package com.flowbase.engine.realtime.dto;
 
-public record WsFrame(String action, String collectionId, String token) {}
+public record WsFrame(WsAction action, String collectionId, String token) {}
