@@ -218,7 +218,8 @@ class CollectionDataServiceImpl implements CollectionDataService {
     private void aclEvaluation(Collection collection, Map<String, Object> payload) {
         AuthenticatedUser user = UserContext.get(); String userId = user != null ? user.id() : null;
         String userRole = user != null ? user.role().name() : null;
-        if (!this.aclEvaluatorService.evaluate(collection.writeRule(), payload, userId, userRole))
+        AclAuthContext aclAuthContext = new AclAuthContext(userId != null ? userId : "anonymous", userRole != null ? userRole : "anonymous");
+        if (!this.aclEvaluatorService.evaluate(collection.writeRule(), payload, aclAuthContext))
             throw new AclDeniedException("Write access denied by ACL policy.");
     }
     
@@ -227,8 +228,9 @@ class CollectionDataServiceImpl implements CollectionDataService {
         AuthenticatedUser currentUser = UserContext.get();
         String userId = currentUser != null ? currentUser.id() : null;
         String userRole = currentUser != null && currentUser.role() != null ? currentUser.role().name() : null;
+        AclAuthContext aclAuthContext = new AclAuthContext(userId != null ? userId : "anonymous", userRole != null ? userRole : "anonymous");
         return documents.stream()
-                        .filter(doc -> this.aclEvaluatorService.evaluate(collection.readRule(), doc.data(), userId, userRole))
+                        .filter(doc -> this.aclEvaluatorService.evaluate(collection.readRule(), doc.data(), aclAuthContext))
                         .toList();
     }
 }
