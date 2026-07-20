@@ -21,6 +21,8 @@ import org.springframework.transaction.annotation.Transactional;
 import tools.jackson.core.type.TypeReference;
 import tools.jackson.databind.ObjectMapper;
 
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.time.Instant;
@@ -28,6 +30,8 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.UUID;
+import java.util.function.Supplier;
 
 
 @Service
@@ -40,26 +44,20 @@ class CollectionDataServiceImpl implements CollectionDataService {
     private final NamedParameterJdbcTemplate jdbcTemplate;
     private final QueryCompiler queryCompiler;
     private final ObjectMapper objectMapper;
+    private final CacheService cacheService;
     
     @Override
     @Transactional
     public CollectionDocument insertDocument(String collectionId, Map<String, Object> payload) {
         Optional<Collection> collectionExists = this.collectionRepository.findById(collectionId);
         if (collectionExists.isEmpty()) throw new CollectionNotFoundException(collectionId);
-        Collection collection = collectionExists.get();
-        for (CollectionField field : collection.fields()) {
-            Object value = payload.get(field.name());
-            for (ValidationRule rule : this.validationRules) {
+        Collection collection = collectionExists.get(); for (CollectionField field : collection.fields()) {
+            Object value = payload.get(field.name()); for (ValidationRule rule : this.validationRules) {
                 rule.validate(field, value);
             }
         }
-        CollectionDocument collectionDocument = new CollectionDocument(
-                this.idGenerator.generate(),
-                collectionId,
-                payload,
-                Instant.now(),
-                Instant.now()
-        );
+        CollectionDocument collectionDocument = new CollectionDocument(this.idGenerator.generate(), collectionId, payload, Instant.now(), Instant.now());
+        this.cacheService.evictNamespace("flowbase:cache:" + collectionId + ":");
         return this.collectionDocumentRepository.save(collectionDocument);
     }
     
@@ -70,80 +68,65 @@ class CollectionDataServiceImpl implements CollectionDataService {
             throw new CollectionNotFoundException(collectionId);
         Optional<CollectionDocument> documentExists = this.collectionDocumentRepository.findById(documentId);
         if (documentExists.isEmpty() || !documentExists.get().collectionId().equals(collectionExists.get().id()))
-            throw new DocumentNotFoundException(documentId);
-        return documentExists.get();
+            throw new DocumentNotFoundException(documentId); return documentExists.get();
     }
     
     @Override
     public List<CollectionDocument> findDocumentsByCollection(String collectionId, QueryContext queryContext) {
         Optional<Collection> collectionExists = this.collectionRepository.findById(collectionId);
         if (collectionExists.isEmpty() || !collectionExists.get().tenantId().equals(TenantContext.get()))
-            return List.of();
-        Collection collection = collectionExists.get();
+            return List.of(); Collection collection = collectionExists.get();
+        String cacheKey = this.keyGenerator(collectionId, "list", queryContext.filters(), queryContext.sortBy(), queryContext.limit());
+        List<CollectionDocument> cached = this.cacheService.getList(cacheKey, CollectionDocument.class);
+        if (cached != null) return cached;
         CompiledQuery compiled = this.queryCompiler.compile(collection, queryContext);
-        StringBuilder sql = new StringBuilder(
-                "SELECT ID, COLLECTION_ID, DATA, CREATED_AT, UPDATED_AT FROM COLLECTION_DOCUMENTS WHERE " + compiled.sql());
-        Map<String, Object> paramMap = new HashMap<>(compiled.params());
-        if (!queryContext.sortBy().isEmpty()) {
-            String sortQuery = queryContext.sortBy().trim();
-            String sortOrder = "ASC";
+        StringBuilder sql = new StringBuilder("SELECT ID, COLLECTION_ID, DATA, CREATED_AT, UPDATED_AT FROM COLLECTION_DOCUMENTS WHERE " + compiled.sql());
+        Map<String, Object> paramMap = new HashMap<>(compiled.params()); if (!queryContext.sortBy().isEmpty()) {
+            String sortQuery = queryContext.sortBy().trim(); String sortOrder = "ASC";
             if (sortQuery.startsWith("-")) {sortOrder = "DESC"; sortQuery = sortQuery.substring(1);}
-            if (sortQuery.equals("createdAt") || sortQuery.equals("updatedAt"))
-                sql.append(" ORDER BY ")
-                   .append(sortQuery.equals("createdAt") ? "created_at " : "updated_at ")
-                   .append(sortOrder);
+            if (sortQuery.equals("createdAt") || sortQuery.equals("updatedAt")) sql.append(" ORDER BY ")
+                                                                                   .append(sortQuery.equals("createdAt") ? "created_at " : "updated_at ")
+                                                                                   .append(sortOrder);
             else {
-                String finalSortQuery = sortQuery;
-                boolean match =
-                        collection.fields()
-                                  .stream()
-                                  .anyMatch(collectionField -> collectionField.name().equals(finalSortQuery));
+                String finalSortQuery = sortQuery; boolean match = collection.fields()
+                                                                             .stream()
+                                                                             .anyMatch(collectionField -> collectionField.name()
+                                                                                                                         .equals(finalSortQuery));
                 if (match) sql.append(" ORDER BY DATA ->> '").append(sortQuery).append("' ").append(sortOrder);
             }
+        } if (queryContext.limit() > 0) {
+            sql.append(" LIMIT :limit_const"); paramMap.put("limit_const", queryContext.limit());
+        } if (queryContext.offset() > 0) {
+            sql.append(" OFFSET :offset_const"); paramMap.put("offset_const", queryContext.offset());
         }
-        if (queryContext.limit() > 0) {
-            sql.append(" LIMIT :limit_const");
-            paramMap.put("limit_const", queryContext.limit());
-        }
-        if (queryContext.offset() > 0) {
-            sql.append(" OFFSET :offset_const");
-            paramMap.put("offset()_const", queryContext.offset());
-        }
-        return this.jdbcTemplate.query(sql.toString(), paramMap, (rs, rowNum) -> {
+        return this.getDocumentsWithStampedeProtection(cacheKey, () -> this.jdbcTemplate.query(sql.toString(), paramMap, (rs, rowNum) -> {
             try {
                 return getCollectionDocument(rs);
             } catch (Exception e) {
                 throw new RuntimeException("Failed to map document row: ", e);
             }
-        });
+        }));
     }
     
     @Override
     public List<CollectionDocument> searchDocuments(String collectionId, String searchQuery, int limit, int offset) {
         Optional<Collection> collectionExists = this.collectionRepository.findById(collectionId);
         if (collectionExists.isEmpty() || !collectionExists.get().tenantId().equals(TenantContext.get()))
-            return List.of();
-        int safeLimit = limit <= 0 ? 20 : Math.clamp(limit, 1, 100);
+            return List.of(); String cacheKey = this.keyGenerator(collectionId, "search", searchQuery, limit, offset);
+        List<CollectionDocument> cached = this.cacheService.getList(cacheKey, CollectionDocument.class);
+        if (cached != null) return cached; int safeLimit = limit <= 0 ? 20 : Math.clamp(limit, 1, 100);
         int safeOffset = Math.max(0, offset);
-        String sql = "SELECT id, collection_id, data, created_at, updated_at, " +
-                " ts_rank(tsv_document, query) as rank " +
-                "FROM collection_documents, websearch_to_tsquery('english', :search_query) query " +
-                "WHERE collection_id = :collectionId_const " +
-                "  AND tsv_document @@ query " +
-                "ORDER BY rank DESC " +
-                "LIMIT :limit_const OFFSET :offset_const";
-        Map<String, Object> paramMap = new HashMap<>();
-        paramMap.put("collectionId_const", collectionId);
-        paramMap.put("search_query", searchQuery);
-        paramMap.put("limit_const", safeLimit);
+        String sql = "SELECT id, collection_id, data, created_at, updated_at, " + " ts_rank(tsv_document, query) as rank " + "FROM collection_documents, websearch_to_tsquery('english', :search_query) query " + "WHERE collection_id = :collectionId_const " + "  AND tsv_document @@ query " + "ORDER BY rank DESC " + "LIMIT :limit_const OFFSET :offset_const";
+        Map<String, Object> paramMap = new HashMap<>(); paramMap.put("collectionId_const", collectionId);
+        paramMap.put("search_query", searchQuery); paramMap.put("limit_const", safeLimit);
         paramMap.put("offset_const", safeOffset);
-        return this.jdbcTemplate.query(sql, paramMap, (rs, rowNum) -> {
+        return this.getDocumentsWithStampedeProtection(cacheKey, () -> this.jdbcTemplate.query(sql, paramMap, (rs, rowNum) -> {
             try {
-                return this.getCollectionDocument(rs);
+                return getCollectionDocument(rs);
             } catch (Exception e) {
-                throw new RuntimeException("Failed to map search document row: ", e);
+                throw new RuntimeException("Failed to map document row: ", e);
             }
-        });
+        }));
     }
     
     @Override
@@ -152,17 +135,13 @@ class CollectionDataServiceImpl implements CollectionDataService {
         CollectionDocument document = this.getDocument(collectionId, documentId);
         Optional<Collection> collectionExists = this.collectionRepository.findById(document.collectionId());
         if (collectionExists.isEmpty()) throw new CollectionNotFoundException(document.collectionId());
-        Map<String, Object> data = document.data();
-        Map<String, Object> merged = new HashMap<>(data);
-        merged.putAll(payload);
-        for (CollectionField field : collectionExists.get().fields()) {
-            Object value = merged.get(field.name());
-            for (ValidationRule rule : this.validationRules) {
+        Map<String, Object> data = document.data(); Map<String, Object> merged = new HashMap<>(data);
+        merged.putAll(payload); for (CollectionField field : collectionExists.get().fields()) {
+            Object value = merged.get(field.name()); for (ValidationRule rule : this.validationRules) {
                 rule.validate(field, value);
             }
-        }
-        document.data(merged);
-        document.updatedAt(Instant.now());
+        } document.data(merged); document.updatedAt(Instant.now());
+        this.cacheService.evictNamespace("flowbase:cache:" + collectionId + ":");
         return this.collectionDocumentRepository.save(document);
     }
     
@@ -171,17 +150,55 @@ class CollectionDataServiceImpl implements CollectionDataService {
     public void deleteDocument(String collectionId, String documentId) {
         CollectionDocument document = this.getDocument(collectionId, documentId);
         this.collectionDocumentRepository.delete(document);
+        this.cacheService.evictNamespace("flowbase:cache:" + collectionId + ":");
     }
     
     @NonNull
     private CollectionDocument getCollectionDocument(ResultSet rs) throws SQLException {
-        String id = rs.getString("id");
-        String collId = rs.getString("collection_id");
+        String id = rs.getString("id"); String collId = rs.getString("collection_id");
         String rawData = rs.getString("data");
         Map<String, Object> data = this.objectMapper.readValue(rawData, new TypeReference<Map<String, Object>>() {});
         Instant createdAt = rs.getTimestamp("created_at").toInstant();
         Instant updatedAt = rs.getTimestamp("updated_at").toInstant();
         return new CollectionDocument(id, collId, data, createdAt, updatedAt);
+    }
+    
+    private String keyGenerator(String collectionId, Object... inputs) {
+        try {
+            StringBuilder sb = new StringBuilder(); for (Object input : inputs) {
+                sb.append(input != null ? input.toString() : "null").append("|");
+            } MessageDigest md = MessageDigest.getInstance("MD5");
+            byte[] hash = md.digest(sb.toString().getBytes(StandardCharsets.UTF_8));
+            StringBuilder hex = new StringBuilder(); for (byte b : hash) {
+                String hexString = Integer.toHexString(0xff & b); if (hexString.length() == 1) hex.append('0');
+                hex.append(hexString);
+            } return "flowbase:cache:" + collectionId + ":" + hex;
+        } catch (Exception e) {
+            throw new RuntimeException("Failed to generate CacheKey :", e);
+        }
+    }
+    
+    private List<CollectionDocument> getDocumentsWithStampedeProtection(String cacheKey, Supplier<List<CollectionDocument>> dbQuerySupplier) {
+        List<CollectionDocument> cached = this.cacheService.getList(cacheKey, CollectionDocument.class);
+        if (cached != null) return cached; String lockKey = cacheKey + ":lock";
+        String lockValue = UUID.randomUUID().toString(); if (this.cacheService.acquireLock(lockKey, lockValue, 5)) {
+            try {
+                cached = this.cacheService.getList(cacheKey, CollectionDocument.class);
+                if (cached != null) return cached; List<CollectionDocument> dbResult = dbQuerySupplier.get();
+                this.cacheService.put(cacheKey, dbResult, 3600); return dbResult;
+            } finally {
+                this.cacheService.releaseLock(lockKey, lockValue);
+            }
+        } else {
+            int retries = 10; while (retries > 0) {
+                try {
+                    Thread.sleep(50);
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt(); break;
+                } cached = this.cacheService.getList(cacheKey, CollectionDocument.class);
+                if (cached != null) return cached; retries--;
+            } return dbQuerySupplier.get();
+        }
     }
 }
 
