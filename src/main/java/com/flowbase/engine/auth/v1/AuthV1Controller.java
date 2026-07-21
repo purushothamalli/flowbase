@@ -10,6 +10,7 @@ import com.flowbase.engine.auth.exception.AuthenticationException;
 import com.flowbase.engine.auth.exception.InvalidTokenException;
 import com.flowbase.engine.auth.service.AuthService;
 import com.flowbase.engine.config.UserContext;
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.AllArgsConstructor;
 import org.springframework.http.HttpHeaders;
@@ -50,7 +51,13 @@ class AuthV1Controller {
     }
     
     @PostMapping("/logout")
-    public ResponseEntity<Void> logout(HttpServletResponse response, @CookieValue(name = "fb_access_token", required = false) String accessToken, @CookieValue(name = "fb_refresh_token", required = false) String refreshToken) {
+    public ResponseEntity<Void> logout(HttpServletRequest request, HttpServletResponse response, @CookieValue(name = "fb_access_token", required = false) String accessToken, @CookieValue(name = "fb_refresh_token", required = false) String refreshToken) {
+        if (accessToken == null || accessToken.isBlank()) {
+            String authHeader = request.getHeader("Authorization");
+            if (authHeader != null && authHeader.startsWith("Bearer ")) {
+                accessToken = authHeader.substring(7);
+            }
+        }
         this.authService.logout(accessToken, refreshToken);
         ResponseCookie clearAccessCookie = ResponseCookie
                 .from("fb_access_token")

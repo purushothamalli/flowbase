@@ -29,7 +29,8 @@ public class JwtService {
     public String generateToken(User user) {
         Instant now = Instant.now();
         Instant expiry = now.plus(Duration.ofMinutes(this.jwtConfiguration.getExpriationMinutes()));
-        String jti = UUID.randomUUID().toString();
+        String jti = UUID.randomUUID()
+                         .toString();
         return Jwts.builder()
                    .id(jti)
                    .subject(user.email())
@@ -43,15 +44,21 @@ public class JwtService {
     }
     
     public AuthenticatedUser parseAndValidate(String token) {
+        if (token == null || token.isBlank()) return null;
         try {
-            Claims claims = Jwts.parser().verifyWith(this.secretKey).build().parseSignedClaims(token).getPayload();
+            Claims claims = Jwts.parser()
+                                .verifyWith(this.secretKey)
+                                .build()
+                                .parseSignedClaims(token)
+                                .getPayload();
             return new AuthenticatedUser(
                     claims.get("userId", String.class),
                     claims.get("tenantId", String.class),
                     claims.getSubject(),
                     UserRole.valueOf(claims.get("role", String.class)),
                     claims.getId(),
-                    claims.getExpiration().toInstant()
+                    claims.getExpiration()
+                          .toInstant()
             );
         } catch (ExpiredJwtException e) {
             throw new ExpiredTokenException("The authentication token is expired!");

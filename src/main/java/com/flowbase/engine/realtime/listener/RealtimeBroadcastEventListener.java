@@ -43,7 +43,11 @@ public class RealtimeBroadcastEventListener {
                 boolean isAllowed = this.aclEvaluatorService.evaluate(readRule, event.collectionDocument()
                                                                                      .data(), aclAuthContext);
                 if (isAllowed) {
-                    Map<String, Object> payload = Map.of("event", event.action(), "collectionId", collection.id(), "data", event.collectionDocument());
+                    var doc = event.collectionDocument();
+                    var docDto = new com.flowbase.engine.collection.dto.CollectionDocumentResponse(
+                        doc.id(), doc.collectionId(), doc.data(), doc.createdAt(), doc.updatedAt()
+                    );
+                    Map<String, Object> payload = Map.of("event", event.action(), "collectionId", collection.id(), "data", docDto);
                     String json = this.objectMapper.writeValueAsString(payload);
                     session.sendMessage(new TextMessage(json));
                     log.info("Broadcasted {} event on collection {} to session {}", event.action(), collection.id(), session.getId());

@@ -68,7 +68,7 @@ class CollectionDataController {
     }
     
     @DeleteMapping("/{documentId}")
-    public ResponseEntity<Void> deleteDocument(@PathVariable String collectionId, @PathVariable String documentId, @RequestBody Map<String, Object> payload) {
+    public ResponseEntity<Void> deleteDocument(@PathVariable String collectionId, @PathVariable String documentId) {
         this.collectionDataService.deleteDocument(collectionId, documentId); return ResponseEntity.noContent().build();
     }
     

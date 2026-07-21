@@ -83,9 +83,17 @@ class AuthServiceImpl implements AuthService {
     @Override
     @Transactional
     public void logout(String accessToken, String refreshToken) {
-        AuthenticatedUser authenticatedUser = this.jwtService.parseAndValidate(accessToken);
-        tokenBlacklistService.revoke(authenticatedUser.jti(), authenticatedUser.expiresAt());
-        Optional<RefreshToken> refreshTokenExists = this.refreshTokenRepository.findById(refreshToken);
-        refreshTokenExists.ifPresent(token -> this.refreshTokenRepository.save(token.revoked(true)));
+        if (accessToken != null && !accessToken.isBlank()) {
+            try {
+                AuthenticatedUser authenticatedUser = this.jwtService.parseAndValidate(accessToken);
+                tokenBlacklistService.revoke(authenticatedUser.jti(), authenticatedUser.expiresAt());
+            } catch (Exception e) {
+                // Ignore invalid or expired token during logout
+            }
+        }
+        if (refreshToken != null && !refreshToken.isBlank()) {
+            Optional<RefreshToken> refreshTokenExists = this.refreshTokenRepository.findById(refreshToken);
+            refreshTokenExists.ifPresent(token -> this.refreshTokenRepository.save(token.revoked(true)));
+        }
     }
 }
