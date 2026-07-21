@@ -6,4 +6,5 @@ export {RealtimeClient} from "./RealtimeClient.js";
 export {FlowBaseError, NetworkError, HttpError} from "./errors.js";
 export {MemoryStorage, LocalStorageAdapter, SessionStorageAdapter} from "./storage.js";
 export {StorageScope} from "./storageScope.js";
+export {JobScope} from "./JobScope.js";
 export * from "./types.js";

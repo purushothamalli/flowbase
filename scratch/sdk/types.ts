@@ -68,3 +68,17 @@ export type FileMetadataResponse = {
     sizeBytes: number,
     createdAt: Date
 }
+
+export interface OutboxResponse {
+    id: string;
+    tenantId: string;
+    eventType: string;
+    payload: string;
+    status: "PENDING" | "PROCESSING" | "COMPLETED" | "FAILED";
+    retryCount: number;
+    maxRetries: number;
+    errorMessage: string;
+    leasedUntil: string | null;
+    createdAt: string;
+    updatedAt: string;
+}

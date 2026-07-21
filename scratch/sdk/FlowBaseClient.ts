@@ -5,6 +5,7 @@ import {CollectionScope} from "./CollectionScope";
 import {RealtimeClient} from "./RealtimeClient";
 import {MemoryStorage} from "./storage";
 import {StorageScope} from "./storageScope";
+import {JobScope} from "./JobScope";
 
 export class FlowBaseClient {
     public readonly apiKey: string;
@@ -17,6 +18,7 @@ export class FlowBaseClient {
     public readonly timeoutMs?: number;
     public readonly retryConfig: retryConfig;
     public readonly storage: StorageScope;
+    public readonly jobs: JobScope;
 
     public collection<T = any>(collectionId: string): CollectionScope<T> {
         return new CollectionScope<T>(collectionId, this.auth, this.realtime);
@@ -41,6 +43,7 @@ export class FlowBaseClient {
         this.retryConfig = config.retry || {maxRetries: 3, retryStatusCodes: [429, 502, 503, 504]};
         this.auth = new AuthManager(this);
         this.storage = new StorageScope(this.auth);
+        this.jobs = new JobScope(this.auth);
         this.customFetch = config.customFetch || fetch;
         this.realtime = new RealtimeClient(this);
     }
