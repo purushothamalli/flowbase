@@ -25,3 +25,10 @@ export class NetworkError extends FlowBaseError {
         super(message);
     }
 }
+
+export class RateLimitError extends HttpError {
+    constructor(public readonly retryAfterSeconds: number, message: string, body?: any) {
+        super(429, message, body);
+        this.name="RateLimitError";
+    }
+}

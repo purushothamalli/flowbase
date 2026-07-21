@@ -1,6 +1,6 @@
 import type {LoginResponse, RequestContext, RequestOptions, ResponseContext, TokenStorage, User} from "./types";
 import type {FlowBaseClient} from "./FlowBaseClient";
-import {FlowBaseError, HttpError, NetworkError} from "./errors";
+import {FlowBaseError, HttpError, NetworkError, RateLimitError} from "./errors";
 import {MemoryStorage} from "./storage";
 
 export class AuthManager {
@@ -91,7 +91,7 @@ export class AuthManager {
         }
         const timeoutMs = options.timeoutMs || this.client.timeoutMs || 10000;
         const maxRetries = options.retry?.maxRetries ?? this.client.retryConfig?.maxRetries ?? 3;
-        const retryStatusCodes = options.retry?.retryStatusCodes ?? this.client.retryConfig?.retryStatusCodes ?? [429, 502, 503, 504];
+        const retryStatusCodes = options.retry?.retryStatusCodes ?? this.client.retryConfig?.retryStatusCodes ?? [502, 503, 504];
         const controller = new AbortController();
         const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
         const signal = options.signal ? AbortSignal.any([options.signal, controller.signal]) : controller.signal;
@@ -138,6 +138,16 @@ export class AuthManager {
                         this.refreshQueue = [];
                         (config.headers as any).Authorization = "Bearer " + this.token;
                         return await this.fetch<T>(endpoint, options);
+                    }
+                    if (response.status === 429) {
+                        const retryAfterHeader = response.headers.get("retry-after");
+                        const retryAfterSeconds = retryAfterHeader ? parseInt(retryAfterHeader, 10) : 1;
+                        if (attempts < maxRetries) {
+                            attempts++;
+                            await new Promise(r => setTimeout(r, retryAfterSeconds * 1000));
+                            continue;
+                        }
+                        throw new RateLimitError(retryAfterSeconds, "Rate limit exceeded. Too many requests.");
                     }
                     if (retryStatusCodes.includes(response.status) && attempts < maxRetries) {
                         attempts++;

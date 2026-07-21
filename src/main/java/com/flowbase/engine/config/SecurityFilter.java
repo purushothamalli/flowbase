@@ -20,7 +20,7 @@ import org.springframework.web.filter.OncePerRequestFilter;
 import java.io.IOException;
 
 @Component
-@Order(2)
+@Order(3)
 @AllArgsConstructor
 public class SecurityFilter extends OncePerRequestFilter {
     private final JwtService jwtService;
