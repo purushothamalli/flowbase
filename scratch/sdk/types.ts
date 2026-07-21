@@ -2,6 +2,9 @@ export interface ClientConfig {
     apiKey: string;
     baseUrl?: string;
     customFetch?: typeof fetch;
+    storage?: TokenStorage;
+    retry?: retryConfig;
+    timeoutMs?: number;
 }
 
 export interface User {
@@ -17,7 +20,41 @@ export interface LoginResponse {
 }
 
 export interface RealtimeEvent<T = any> {
-    event: "insert" | "update" | "delete",
-    collectionId: string,
-    data: T
+    event: "insert" | "update" | "delete";
+    collectionId: string;
+    data: T;
+}
+
+export interface RequestContext {
+    url: string;
+    options: RequestInit;
+}
+
+export interface ResponseContext {
+    response: Response;
+    data?: any;
+}
+
+export type NextFunction = () => Promise<ResponseContext>;
+export type Middleware = (
+    context: RequestContext,
+    next: NextFunction
+) => Promise<ResponseContext>;
+
+export interface TokenStorage {
+    getItem(key: string): string | null;
+
+    setItem(key: string, value: string): void;
+
+    removeItem(key: string): void;
+}
+
+export interface retryConfig {
+    maxRetries?: number;
+    retryStatusCodes?: number[];
+}
+
+export interface RequestOptions extends RequestInit {
+    timeoutMs?: number;
+    retry?: retryConfig;
 }
