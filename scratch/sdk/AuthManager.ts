@@ -16,7 +16,7 @@ export class AuthManager {
 
     constructor(client: FlowBaseClient) {
         this.client = client;
-        this.storage = client.storage || new MemoryStorage();
+        this.storage = client.storageTokens || new MemoryStorage();
         this.token = this.storage.getItem(this.STORAGE_ACCESS_TOKEN_KEY);
         this.refreshToken = this.storage.getItem(this.STORAGE_REFRESH_TOKEN_KEY);
     }
@@ -86,20 +86,19 @@ export class AuthManager {
         const normalizedEndpoint = endpoint.startsWith("/") ? endpoint : `/${endpoint}`;
         const url = endpoint.startsWith("http") ? endpoint : `${this.client.baseUrl}${normalizedEndpoint}`;
         const headers = {...this.getAuthHeaders(), ...(options.headers || {})};
+        if (typeof FormData !== "undefined" && options.body instanceof FormData) {
+            delete (headers as any)["Content-Type"];
+        }
         const timeoutMs = options.timeoutMs || this.client.timeoutMs || 10000;
         const maxRetries = options.retry?.maxRetries ?? this.client.retryConfig?.maxRetries ?? 3;
         const retryStatusCodes = options.retry?.retryStatusCodes ?? this.client.retryConfig?.retryStatusCodes ?? [429, 502, 503, 504];
-
         const controller = new AbortController();
         const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
         const signal = options.signal ? AbortSignal.any([options.signal, controller.signal]) : controller.signal;
-
         const config = {...options, headers, credentials: options.credentials || "include", signal};
         const request: RequestContext = {url, options: config};
-
         let attempts = 0;
         let response: Response;
-
         while (true) {
             let index = -1;
             const dispatch = async (i: number): Promise<ResponseContext> => {
@@ -113,10 +112,8 @@ export class AuthManager {
                 const fn = chain[i];
                 return await fn(request, () => dispatch(i + 1));
             };
-
             try {
                 response = (await dispatch(0)).response;
-
                 if (!response.ok) {
                     if (response.status === 401 && !(options as any)._isRetry && this.refreshToken && !endpoint.includes("/v1/auth/login")) {
                         (options as any)._isRetry = true;
@@ -142,7 +139,6 @@ export class AuthManager {
                         (config.headers as any).Authorization = "Bearer " + this.token;
                         return await this.fetch<T>(endpoint, options);
                     }
-
                     if (retryStatusCodes.includes(response.status) && attempts < maxRetries) {
                         attempts++;
                         const delay = Math.min(1000 * Math.pow(2, attempts - 1), 10000);
@@ -151,12 +147,14 @@ export class AuthManager {
                     }
 
                     let errorBody: any;
-                    try { errorBody = await response.json(); } catch { errorBody = await response.text(); }
+                    try {
+                        errorBody = await response.json();
+                    } catch {
+                        errorBody = await response.text();
+                    }
                     throw new HttpError(response.status, response.statusText, errorBody);
                 }
-
                 break; // 200 OK!
-
             } catch (err) {
                 if (err instanceof FlowBaseError) throw err;
                 if (attempts < maxRetries && !signal.aborted) {
@@ -184,5 +182,22 @@ export class AuthManager {
             return (await response.json()) as T;
         }
         return (await response.text()) as unknown as T;
+    }
+
+    public async fetchRaw(endpoint: string, options: RequestOptions = {}): Promise<Response> {
+        try {
+            const customFetchEngine = this.client.customFetch || fetch;
+            const normalizedEndpoint = endpoint.startsWith("/") ? endpoint : `/${endpoint}`;
+            const url = endpoint.startsWith("http") ? endpoint : `${this.client.baseUrl}${normalizedEndpoint}`;
+            const headers = {...this.getAuthHeaders(), ...(options.headers || {})};
+            if (typeof FormData !== "undefined" && options.body instanceof FormData) {
+                delete (headers as any)["Content-Type"];
+            }
+            const config = {...options, headers, credentials: options.credentials || "include"};
+            return await customFetchEngine(url, config);
+        } catch (e) {
+            console.log(e);
+            throw new HttpError(500, "Error during raw fetch!", e);
+        }
     }
 }

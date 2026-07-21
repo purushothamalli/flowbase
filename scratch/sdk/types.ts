@@ -58,3 +58,13 @@ export interface RequestOptions extends RequestInit {
     timeoutMs?: number;
     retry?: retryConfig;
 }
+
+export type FileMetadataResponse = {
+    id: string,
+    tenantId: string,
+    uploaderId: string,
+    filename: string,
+    contentType: string,
+    sizeBytes: number,
+    createdAt: Date
+}
