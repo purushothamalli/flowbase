@@ -34,6 +34,10 @@ public class Collection {
     @Nullable
     @Column(name = "WRITE_RULE")
     private String writeRule;
+    @Column(name = "CACHE_TTL_SECONDS")
+    private Long cacheTtlSeconds;
+    @Column(name = "LOCK_TTL_SECONDS")
+    private Long lockTtlSeconds;
     @OneToMany(mappedBy = "collection", cascade = CascadeType.ALL, orphanRemoval = true, targetEntity = CollectionField.class)
     private List<CollectionField> fields;
 }

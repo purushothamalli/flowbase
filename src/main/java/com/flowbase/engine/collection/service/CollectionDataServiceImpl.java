@@ -82,11 +82,12 @@ class CollectionDataServiceImpl implements CollectionDataService {
     }
     
     @Override
+    @Transactional(readOnly = true)
     public List<CollectionDocument> findDocumentsByCollection(String collectionId, QueryContext queryContext) {
         Optional<Collection> collectionExists = this.collectionRepository.findById(collectionId);
         if (collectionExists.isEmpty() || !collectionExists.get().tenantId().equals(TenantContext.get()))
             return List.of(); Collection collection = collectionExists.get();
-        String cacheKey = this.keyGenerator(collectionId, "list", queryContext.filters(), queryContext.sortBy(), queryContext.limit());
+        String cacheKey = this.keyGenerator(collectionId, "list", queryContext.rootNode(), queryContext.sortBy(), queryContext.limit());
         boolean bypassCache = collection.readRule() != null && collection.readRule().contains("#auth");
         if (!bypassCache) {
             List<CollectionDocument> cached = this.cacheService.getList(cacheKey, CollectionDocument.class);
@@ -111,7 +112,7 @@ class CollectionDataServiceImpl implements CollectionDataService {
         } if (queryContext.offset() > 0) {
             sql.append(" OFFSET :offset_const"); paramMap.put("offset_const", queryContext.offset());
         }
-        return this.filterDocuments(collection, this.getDocumentsWithStampedeProtection(cacheKey, bypassCache, () -> this.jdbcTemplate.query(sql.toString(), paramMap, (rs, rowNum) -> {
+        return this.filterDocuments(collection, this.getDocumentsWithStampedeProtection(cacheKey, bypassCache, collection, () -> this.jdbcTemplate.query(sql.toString(), paramMap, (rs, rowNum) -> {
             try {
                 return getCollectionDocument(rs);
             } catch (Exception e) {
@@ -121,6 +122,7 @@ class CollectionDataServiceImpl implements CollectionDataService {
     }
     
     @Override
+    @Transactional(readOnly = true)
     public List<CollectionDocument> searchDocuments(String collectionId, String searchQuery, int limit, int offset) {
         Optional<Collection> collectionExists = this.collectionRepository.findById(collectionId);
         if (collectionExists.isEmpty() || !collectionExists.get().tenantId().equals(TenantContext.get()))
@@ -135,7 +137,7 @@ class CollectionDataServiceImpl implements CollectionDataService {
         Map<String, Object> paramMap = new HashMap<>(); paramMap.put("collectionId_const", collectionId);
         paramMap.put("search_query", searchQuery); paramMap.put("limit_const", safeLimit);
         paramMap.put("offset_const", safeOffset);
-        return this.filterDocuments(collection, this.getDocumentsWithStampedeProtection(cacheKey, bypassCache, () -> this.jdbcTemplate.query(sql, paramMap, (rs, rowNum) -> {
+        return this.filterDocuments(collection, this.getDocumentsWithStampedeProtection(cacheKey, bypassCache, collection, () -> this.jdbcTemplate.query(sql, paramMap, (rs, rowNum) -> {
             try {
                 return getCollectionDocument(rs);
             } catch (Exception e) {
@@ -199,15 +201,19 @@ class CollectionDataServiceImpl implements CollectionDataService {
         }
     }
     
-    private List<CollectionDocument> getDocumentsWithStampedeProtection(String cacheKey, boolean bypassCache, Supplier<List<CollectionDocument>> dbQuerySupplier) {
+    private List<CollectionDocument> getDocumentsWithStampedeProtection(String cacheKey, boolean bypassCache, Collection collection, Supplier<List<CollectionDocument>> dbQuerySupplier) {
         if (bypassCache) return dbQuerySupplier.get();
         List<CollectionDocument> cached = this.cacheService.getList(cacheKey, CollectionDocument.class);
-        if (cached != null) return cached; String lockKey = cacheKey + ":lock";
-        String lockValue = UUID.randomUUID().toString(); if (this.cacheService.acquireLock(lockKey, lockValue, 5)) {
+        if (cached != null) return cached;
+        String lockKey = cacheKey + ":lock";
+        String lockValue = UUID.randomUUID().toString();
+        int lockTtl = collection.lockTtlSeconds() != null ? collection.lockTtlSeconds().intValue() : 5;
+        int cacheTtl = collection.cacheTtlSeconds() != null ? collection.cacheTtlSeconds().intValue() : 3600;
+        if (this.cacheService.acquireLock(lockKey, lockValue, lockTtl)) {
             try {
                 cached = this.cacheService.getList(cacheKey, CollectionDocument.class);
                 if (cached != null) return cached; List<CollectionDocument> dbResult = dbQuerySupplier.get();
-                this.cacheService.put(cacheKey, dbResult, 3600); return dbResult;
+                this.cacheService.put(cacheKey, dbResult, cacheTtl); return dbResult;
             } finally {
                 this.cacheService.releaseLock(lockKey, lockValue);
             }

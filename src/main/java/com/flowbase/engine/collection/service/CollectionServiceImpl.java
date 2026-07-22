@@ -38,12 +38,14 @@ class CollectionServiceImpl implements CollectionService {
                                                 .tenantId(tenantId)
                                                 .name(request.name())
                                                 .readRule(request.readRule())
-                                                .writeRule(request.writeRule());
+                                                .writeRule(request.writeRule())
+                                                .cacheTtlSeconds(request.cacheTtlSeconds())
+                                                .lockTtlSeconds(request.lockTtlSeconds());
         List<CollectionField> fields = request.
                 fields().
                 stream().
                 map(r -> new CollectionField(
-                        this.idGenerator.generate(), r.name(), r.type(), r.required(), r.indexed(), collection)
+                        this.idGenerator.generate(), r.name(), r.type(), r.required(), r.indexed(), r.searchable(), collection)
                 ).toList();
         collection.fields(fields);
         this.collectionRepository.save(collection);

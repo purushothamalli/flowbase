@@ -34,3 +34,6 @@ build/
 
 ### Local Env ###
 .env
+
+scratch/sdk/node_modules
+

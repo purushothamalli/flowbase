@@ -13,6 +13,7 @@ import java.util.EnumMap;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicInteger;
 
 @Component
 public class QueryCompiler {
@@ -50,43 +51,9 @@ public class QueryCompiler {
         StringBuilder sql = new StringBuilder().append("collection_Id = :collectionId_const");
         Map<String, Object> params = new HashMap<>();
         params.put("collectionId_const", collection.id());
-        if (queryContext.filters() == null || queryContext.filters().isEmpty())
-            return new CompiledQuery(sql.toString(), params);
-        for (int i = 0; i < queryContext.filters().size(); i++) {
-            QueryFilter filter = queryContext.filters().get(i);
-            CollectionField field = collection.fields()
-                                              .stream()
-                                              .filter(f -> f.name().equals(filter.field()))
-                                              .findFirst()
-                                              .orElseThrow(() -> new ValidationException("FIeld '" + filter.field() + "' not defined in collection schema"));
-            String sqlPath = this.sqlDialect.getJsonFieldPath(field.name(), field.type());
-            String parameterName = field.name() + "_" + i;
-            OperatorCompiler compiler = this.operatorCompilers.get(filter.operator());
-            if (compiler == null) throw new UnsupportedOperationException("Operator " + filter.operator() + " is not " +
-                    "implemented");
-            String sqlClause = compiler.compile(sqlPath,parameterName, field.name());
-            String rawValue = String.valueOf(filter.value());
-            if (filter.operator() == FilterOperator.IS_NULL || filter.operator() == FilterOperator.IS_NOT_NULL) {
-                //no work! pass!
-            } else if (filter.operator() == FilterOperator.IN || filter.operator() == FilterOperator.NOT_IN) {
-                List<Object> valuesList = Arrays.stream(rawValue.split(","))
-                                                .map(val -> this.castValue(val.trim(), field.type()))
-                                                .toList(); params.put(parameterName, valuesList);
-            } else if (filter.operator() == FilterOperator.STARTS_WITH) {
-                params.put(parameterName, rawValue + "%");
-            } else if (filter.operator() == FilterOperator.ENDS_WITH) {
-                params.put(parameterName, "%" + rawValue);
-            } else if (filter.operator() == FilterOperator.CONTAINS) {
-                params.put(parameterName, "%" + rawValue + "%");
-            } else {
-                params.put(parameterName, this.castValue(rawValue, field.type()));
-            } sql.append(" AND ").append(sqlClause);
-        } return new CompiledQuery(sql.toString(), params);
-    }
-    
-    private Object castValue(String value, FieldType type) {
-        if (type == FieldType.NUMBER) return new BigDecimal(value);
-        else if (type == FieldType.BOOLEAN) return Boolean.parseBoolean(value);
-        else return value;
+        AtomicInteger paramIndex = new AtomicInteger(0);
+        String astSql = queryContext.rootNode().compile(sqlDialect,this.operatorCompilers,params,collection,paramIndex);
+        sql.append(" AND ").append(astSql);
+        return new CompiledQuery(sql.toString(), params);
     }
 }

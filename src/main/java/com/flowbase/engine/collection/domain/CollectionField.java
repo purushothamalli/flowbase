@@ -33,6 +33,8 @@ public class CollectionField {
     private boolean required;
     @Column(name = "INDEXED")
     private boolean indexed;
+    @Column(name = "SEARCHABLE")
+    private boolean searchable = true;
     @ManyToOne
     @JoinColumn(name = "COLLECTION_ID", nullable = false, referencedColumnName = "ID")
     private Collection collection;

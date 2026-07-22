@@ -14,9 +14,9 @@ public class QueryParser {
     private static final Pattern BRACKET_PATTERN = Pattern.compile("^(\\w+)\\[(\\w+)]$");
     
     public QueryContext parse(Map<String, String[]> parameterMap) {
+        List<QueryNode> nodes = new ArrayList<>();
         String sortBy = "";
         int limit = 20, offset = 0;
-        List<QueryFilter> filters = new ArrayList<>();
         for (Map.Entry<String, String[]> entry : parameterMap.entrySet()) {
             String key = entry.getKey();
             String[] values = entry.getValue();
@@ -49,8 +49,8 @@ public class QueryParser {
                 fieldName = key;
                 operator = FilterOperator.EQ;
             }
-            filters.add(new QueryFilter(fieldName, operator, rawValue));
+            nodes.add(new FilterNode(new QueryFilter(fieldName, operator, rawValue)));
         }
-        return new QueryContext(filters, sortBy, limit, offset);
+        return new QueryContext(new AndNode(nodes), sortBy, limit, offset);
     }
 }
