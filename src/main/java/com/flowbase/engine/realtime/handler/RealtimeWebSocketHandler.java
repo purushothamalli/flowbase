@@ -6,7 +6,6 @@ import com.flowbase.engine.realtime.dto.WsFrame;
 import com.flowbase.engine.realtime.dto.WsResponse;
 import com.flowbase.engine.realtime.service.SubscriptionRegistryService;
 import io.micrometer.core.instrument.MeterRegistry;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.jspecify.annotations.NonNull;
 import org.springframework.stereotype.Component;

@@ -1,0 +1,54 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: flowbase-postgres
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_DB: flowbase
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: purushotham
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d flowbase"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    container_name: flowbase-redis
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  flowbase-app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: flowbase-app
+    ports:
+      - "8080:8080"
+    environment:
+      - JWT_SECRET=91b33b95be12259a48994992a1abf45c28afc0b5919b9508e95ca97ee39ffaa0
+      - JWT_EXPIRATION_MINUTES=15
+      - DB_URL=jdbc:postgresql://postgres:5432/flowbase
+      - DB_USERNAME=postgres
+      - DB_PASSWORD=purushotham
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+volumes:
+  postgres_data:
