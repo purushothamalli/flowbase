@@ -46,5 +46,16 @@ export class FlowBaseClient {
         this.jobs = new JobScope(this.auth);
         this.customFetch = config.customFetch || fetch;
         this.realtime = new RealtimeClient(this);
+        this.use(async (request, next) => {
+            if (!request.options.headers || !(request.options.headers as any)["traceparent"]) {
+                const traceId = Array.from({length: 32}, () => Math.floor(Math.random() * 16).toString(16)).join("");
+                const spanId = Array.from({length: 16}, () => Math.floor(Math.random() * 16).toString(16)).join("");
+                const traceparent = `00-${traceId}-${spanId}-01`;
+                request.options.headers = {
+                    ...request.options.headers, traceparent
+                }
+            }
+            return await next();
+        });
     }
 }

@@ -65,7 +65,7 @@ public class SecurityFilter extends OncePerRequestFilter {
     }
     
     private boolean isBypassed(String requestURI, String requestMethod) {
-        if (requestURI.equals("/v1/auth/register") || requestURI.equals("/v1/auth/login") || requestURI.equals("/v1/auth/refresh") || requestURI.equals("/v1/realtime"))
+        if (requestURI.equals("/v1/auth/register") || requestURI.equals("/v1/auth/login") || requestURI.equals("/v1/auth/refresh") || requestURI.equals("/v1/realtime") || requestURI.startsWith("/actuator"))
             return true;
         return requestURI.startsWith("/v1/tenants");
     }

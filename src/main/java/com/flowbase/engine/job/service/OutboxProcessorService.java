@@ -4,6 +4,7 @@ import com.flowbase.engine.job.domain.OutboxEvent;
 import com.flowbase.engine.job.domain.OutboxStatus;
 import com.flowbase.engine.job.handler.JobHandler;
 import com.flowbase.engine.job.repository.OutboxEventRepository;
+import io.micrometer.core.instrument.MeterRegistry;
 import jakarta.annotation.PostConstruct;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -25,6 +26,7 @@ public class OutboxProcessorService {
     private final OutboxEventRepository outboxEventRepository;
     private final Map<String, JobHandler> handlers = new HashMap<>();
     private final List<JobHandler> handlerList;
+    private final MeterRegistry meterRegistry;
     
     @PostConstruct
     private void init() {
@@ -62,9 +64,13 @@ public class OutboxProcessorService {
             event.status(OutboxStatus.COMPLETED);
             event.errorMessage(null);
             event.updatedAt(Instant.now());
+            this.meterRegistry.counter("flowbase_jobs_processed_total", "status", "success")
+                              .increment();
             log.info("Outbox job [{}] completed successfully.", event.id());
         } catch (Exception e) {
             log.error("Outbox job [{}] execution failed {}", event.id(), e.getMessage());
+            this.meterRegistry.counter("flowbase_jobs_processed_total", "status", "failed")
+                              .increment();
             event.retryCount(event.retryCount() + 1);
             event.errorMessage(e.getMessage());
             if (event.retryCount() >= event.maxRetries()) event.status(OutboxStatus.FAILED);

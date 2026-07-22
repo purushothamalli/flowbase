@@ -25,7 +25,7 @@ public class RateLimitingFilter extends OncePerRequestFilter {
     @Override
     protected void doFilterInternal(@NonNull HttpServletRequest request, @NonNull HttpServletResponse response, @NonNull FilterChain filterChain) throws ServletException, IOException {
         String path = request.getRequestURI();
-        if (path.startsWith("/v1/tenants") || path.startsWith("/v1/auth/register") || path.startsWith("/v1/auth/login")) {
+        if (path.startsWith("/v1/tenants") || path.startsWith("/v1/auth/register") || path.startsWith("/v1/auth/login") || path.startsWith("/actuator")) {
             filterChain.doFilter(request, response);
             return;
         }
