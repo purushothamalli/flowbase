@@ -22,6 +22,10 @@ export class CollectionScope<T> {
         });
     }
 
+    public async insertMany(documents: Array<Partial<T>>): Promise<T[]> {
+        return await Promise.all(documents.map(doc => this.insert(doc)));
+    }
+
     public async update(id: string, data: Partial<T>): Promise<T> {
         return await this.authManager.fetch<T>(`/v1/data/${this.collectionId}/${id}`, {
             method: "PATCH",

@@ -23,6 +23,9 @@ class CollectionScope {
             body: JSON.stringify(data)
         });
     }
+    async insertMany(documents) {
+        return await Promise.all(documents.map(doc => this.insert(doc)));
+    }
     async update(id, data) {
         return await this.authManager.fetch(`/v1/data/${this.collectionId}/${id}`, {
             method: "PATCH",

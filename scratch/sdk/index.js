@@ -14,7 +14,7 @@ var __exportStar = (this && this.__exportStar) || function(m, exports) {
     for (var p in m) if (p !== "default" && !Object.prototype.hasOwnProperty.call(exports, p)) __createBinding(exports, m, p);
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.JobScope = exports.StorageScope = exports.SessionStorageAdapter = exports.LocalStorageAdapter = exports.MemoryStorage = exports.RateLimitError = exports.HttpError = exports.NetworkError = exports.FlowBaseError = exports.RealtimeClient = exports.CollectionScope = exports.QueryFieldClause = exports.QueryBuilder = exports.AuthManager = exports.FlowBaseClient = void 0;
+exports.QueryCache = exports.JobScope = exports.StorageScope = exports.SessionStorageAdapter = exports.LocalStorageAdapter = exports.MemoryStorage = exports.RateLimitError = exports.HttpError = exports.NetworkError = exports.FlowBaseError = exports.RealtimeClient = exports.CollectionScope = exports.QueryFieldClause = exports.QueryBuilder = exports.AuthManager = exports.FlowBaseClient = void 0;
 var FlowBaseClient_js_1 = require("./FlowBaseClient.js");
 Object.defineProperty(exports, "FlowBaseClient", { enumerable: true, get: function () { return FlowBaseClient_js_1.FlowBaseClient; } });
 var AuthManager_js_1 = require("./AuthManager.js");
@@ -39,5 +39,7 @@ var storageScope_js_1 = require("./storageScope.js");
 Object.defineProperty(exports, "StorageScope", { enumerable: true, get: function () { return storageScope_js_1.StorageScope; } });
 var JobScope_js_1 = require("./JobScope.js");
 Object.defineProperty(exports, "JobScope", { enumerable: true, get: function () { return JobScope_js_1.JobScope; } });
+var QueryCache_js_1 = require("./QueryCache.js");
+Object.defineProperty(exports, "QueryCache", { enumerable: true, get: function () { return QueryCache_js_1.QueryCache; } });
 __exportStar(require("./types.js"), exports);
 //# sourceMappingURL=index.js.map

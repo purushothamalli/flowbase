@@ -7,5 +7,6 @@ export { FlowBaseError, NetworkError, HttpError, RateLimitError } from "./errors
 export { MemoryStorage, LocalStorageAdapter, SessionStorageAdapter } from "./storage.js";
 export { StorageScope } from "./storageScope.js";
 export { JobScope } from "./JobScope.js";
+export { QueryCache } from "./QueryCache.js";
 export * from "./types.js";
 //# sourceMappingURL=index.d.ts.map

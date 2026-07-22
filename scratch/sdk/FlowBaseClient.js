@@ -9,6 +9,7 @@ const storage_1 = require("./storage");
 const storageScope_1 = require("./storageScope");
 const JobScope_1 = require("./JobScope");
 const HttpClient_1 = require("./HttpClient");
+const QueryCache_1 = require("./QueryCache");
 class FlowBaseClient {
     apiKey;
     baseUrl;
@@ -16,6 +17,7 @@ class FlowBaseClient {
     auth;
     realtime;
     httpClient;
+    queryCache;
     middlewares = [];
     storageTokens;
     timeoutMs;
@@ -41,6 +43,7 @@ class FlowBaseClient {
         this.timeoutMs = config.timeoutMs || 10000;
         this.retryConfig = config.retry || { maxRetries: 3, retryStatusCodes: [429, 502, 503, 504] };
         this.httpClient = new HttpClient_1.HttpClient(this);
+        this.queryCache = new QueryCache_1.QueryCache();
         this.auth = new AuthManager_1.AuthManager(this);
         this.storage = new storageScope_1.StorageScope(this.auth);
         this.jobs = new JobScope_1.JobScope(this.auth);

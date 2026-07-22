@@ -10,6 +10,7 @@ export declare class CollectionScope<T> {
     query(): QueryBuilder<T>;
     findById(id: string): Promise<T>;
     insert(data: Partial<T>): Promise<T>;
+    insertMany(documents: Array<Partial<T>>): Promise<T[]>;
     update(id: string, data: Partial<T>): Promise<T>;
     delete(id: string): Promise<void>;
     subscribe(callback: (event: RealtimeEvent<T>) => void): () => void;
