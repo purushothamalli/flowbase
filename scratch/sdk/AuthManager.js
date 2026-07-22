@@ -1,67 +1,60 @@
-import type {LoginResponse, RequestContext, RequestOptions, ResponseContext, TokenStorage, User} from "./types";
-import type {FlowBaseClient} from "./FlowBaseClient";
-import {FlowBaseError, HttpError, NetworkError, RateLimitError} from "./errors";
-import {MemoryStorage} from "./storage";
-
-export class AuthManager {
-    private token: string | null = null;
-    private refreshToken: string | null = null;
-    private currentUser: User | null = null;
-    private client: FlowBaseClient;
-    private storage: TokenStorage;
-    private readonly STORAGE_ACCESS_TOKEN_KEY = "fb_access_token";
-    private readonly STORAGE_REFRESH_TOKEN_KEY = "fb_refresh_token";
-    private isRefreshing: boolean = false;
-    private refreshQueue: Array<(token: string) => void> = [];
-
-    constructor(client: FlowBaseClient) {
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.AuthManager = void 0;
+const errors_1 = require("./errors");
+const storage_1 = require("./storage");
+class AuthManager {
+    token = null;
+    refreshToken = null;
+    currentUser = null;
+    client;
+    storage;
+    STORAGE_ACCESS_TOKEN_KEY = "fb_access_token";
+    STORAGE_REFRESH_TOKEN_KEY = "fb_refresh_token";
+    isRefreshing = false;
+    refreshQueue = [];
+    constructor(client) {
         this.client = client;
-        this.storage = client.storageTokens || new MemoryStorage();
+        this.storage = client.storageTokens || new storage_1.MemoryStorage();
         this.token = this.storage.getItem(this.STORAGE_ACCESS_TOKEN_KEY);
         this.refreshToken = this.storage.getItem(this.STORAGE_REFRESH_TOKEN_KEY);
     }
-
-    getToken(): string | null {
+    getToken() {
         return this.storage.getItem(this.STORAGE_ACCESS_TOKEN_KEY);
     }
-
-    getCurrentUser(): User | null {
+    getCurrentUser() {
         return this.currentUser;
     }
-
-    public async login(email: string, password: string): Promise<LoginResponse> {
-        const response = await this.fetch<LoginResponse>("/v1/auth/login", {
-            method: "POST", body: JSON.stringify({email, password})
+    async login(email, password) {
+        const response = await this.fetch("/v1/auth/login", {
+            method: "POST", body: JSON.stringify({ email, password })
         });
         this.token = response.accessToken;
         this.storage.setItem(this.STORAGE_ACCESS_TOKEN_KEY, response.accessToken);
         return response;
     }
-
-    public async register(email: string, password: string, role = "DEVELOPER"): Promise<User> {
-        const response = await this.fetch<User>("/v1/auth/register", {
+    async register(email, password, role = "DEVELOPER") {
+        const response = await this.fetch("/v1/auth/register", {
             method: "POST",
-            body: JSON.stringify({email, password, role})
+            body: JSON.stringify({ email, password, role })
         });
         this.currentUser = response;
         return response;
     }
-
-    public async logout(): Promise<void> {
-        await this.fetch<void>("/v1/auth/logout", {method: "POST"});
+    async logout() {
+        await this.fetch("/v1/auth/logout", { method: "POST" });
         this.currentUser = null;
         this.token = null;
         this.storage.removeItem(this.STORAGE_ACCESS_TOKEN_KEY);
         this.refreshToken = null;
         this.storage.removeItem(this.STORAGE_REFRESH_TOKEN_KEY);
     }
-
-    public async refresh(): Promise<LoginResponse> {
-        const headers: Record<string, string> = {};
+    async refresh() {
+        const headers = {};
         if (this.refreshToken) {
             headers["Cookie"] = `fb_refresh_token=${this.refreshToken}`;
         }
-        const res = await this.fetch<LoginResponse>("/v1/auth/refresh", {
+        const res = await this.fetch("/v1/auth/refresh", {
             method: "POST",
             headers
         });
@@ -69,22 +62,21 @@ export class AuthManager {
         this.storage.setItem(this.STORAGE_ACCESS_TOKEN_KEY, res.accessToken);
         return res;
     }
-
-    public getRefreshToken(): string | null {
+    getRefreshToken() {
         return this.refreshToken;
     }
-
-    public setRefreshToken(token: string): void {
+    setRefreshToken(token) {
         this.refreshToken = token;
         this.storage.setItem(this.STORAGE_REFRESH_TOKEN_KEY, token);
     }
-
-    public async refreshAccessTokenSync(): Promise<string> {
+    async refreshAccessTokenSync() {
         if (this.isRefreshing) {
             return await new Promise((resolve, reject) => {
                 this.refreshQueue.push((newToken) => {
-                    if (newToken) resolve(newToken);
-                    else reject(new Error("Refresh token sync execution failed"));
+                    if (newToken)
+                        resolve(newToken);
+                    else
+                        reject(new Error("Refresh token sync execution failed"));
                 });
             });
         }
@@ -95,25 +87,25 @@ export class AuthManager {
             this.storage.setItem(this.STORAGE_ACCESS_TOKEN_KEY, res.accessToken);
             this.refreshQueue.forEach(cb => cb(res.accessToken));
             return res.accessToken;
-        } catch (e) {
+        }
+        catch (e) {
             this.refreshQueue.forEach(cb => cb(""));
             throw e;
-        } finally {
+        }
+        finally {
             this.isRefreshing = false;
             this.refreshQueue = [];
         }
     }
-
-    public async fetch<T>(endpoint: string, options: RequestOptions = {}): Promise<T> {
-        return await this.client.httpClient.request<T>(endpoint, options);
+    async fetch(endpoint, options = {}) {
+        return await this.client.httpClient.request(endpoint, options);
     }
-
-    public async fetchRaw(endpoint: string, options: RequestOptions = {}): Promise<Response> {
+    async fetchRaw(endpoint, options = {}) {
         try {
             const customFetchEngine = this.client.customFetch || fetch;
             const normalizedEndpoint = endpoint.startsWith("/") ? endpoint : `/${endpoint}`;
             const url = endpoint.startsWith("http") ? endpoint : `${this.client.baseUrl}${normalizedEndpoint}`;
-            const headers: Record<string, string> = {
+            const headers = {
                 "Content-Type": "application/json",
                 "X-FlowBase-API-Key": this.client.apiKey
             };
@@ -124,13 +116,16 @@ export class AuthManager {
                 headers["Authorization"] = `Bearer ${this.token}`;
             }
             if (typeof FormData !== "undefined" && options.body instanceof FormData) {
-                delete (headers as any)["Content-Type"];
+                delete headers["Content-Type"];
             }
-            const config = {...options, headers, credentials: options.credentials || "include"};
+            const config = { ...options, headers, credentials: options.credentials || "include" };
             return await customFetchEngine(url, config);
-        } catch (e) {
+        }
+        catch (e) {
             console.log(e);
-            throw new HttpError(500, "Error during raw fetch!", e);
+            throw new errors_1.HttpError(500, "Error during raw fetch!", e);
         }
     }
 }
+exports.AuthManager = AuthManager;
+//# sourceMappingURL=AuthManager.js.map

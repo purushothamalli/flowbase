@@ -6,6 +6,7 @@ import {RealtimeClient} from "./RealtimeClient";
 import {MemoryStorage} from "./storage";
 import {StorageScope} from "./storageScope";
 import {JobScope} from "./JobScope";
+import {HttpClient} from "./HttpClient";
 
 export class FlowBaseClient {
     public readonly apiKey: string;
@@ -13,6 +14,7 @@ export class FlowBaseClient {
     public readonly customFetch: typeof fetch;
     public readonly auth: AuthManager;
     public readonly realtime: RealtimeClient;
+    public readonly httpClient: HttpClient;
     private middlewares: Middleware[] = [];
     public readonly storageTokens: TokenStorage;
     public readonly timeoutMs?: number;
@@ -41,6 +43,7 @@ export class FlowBaseClient {
         this.storageTokens = config.storage || new MemoryStorage();
         this.timeoutMs = config.timeoutMs || 10000;
         this.retryConfig = config.retry || {maxRetries: 3, retryStatusCodes: [429, 502, 503, 504]};
+        this.httpClient = new HttpClient(this);
         this.auth = new AuthManager(this);
         this.storage = new StorageScope(this.auth);
         this.jobs = new JobScope(this.auth);
