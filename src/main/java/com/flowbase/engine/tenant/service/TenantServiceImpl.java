@@ -8,6 +8,8 @@ import com.flowbase.engine.tenant.repository.TenantRepository;
 import lombok.AllArgsConstructor;
 import org.springframework.stereotype.Service;
 
+import java.security.SecureRandom;
+import java.util.Base64;
 import java.util.Optional;
 
 @Service
@@ -15,6 +17,7 @@ import java.util.Optional;
 class TenantServiceImpl implements TenantService {
     private final TenantRepository tenantRepository;
     private final IdGenerator idGenerator;
+    private final SecureRandom secureRandom = new SecureRandom();
     
     @Override
     public Optional<Tenant> findTenantByApiKey(String apiKey) {
@@ -24,7 +27,11 @@ class TenantServiceImpl implements TenantService {
     @Override
     public TenantResponse createTenant(String name) {
         String id = this.idGenerator.generate();
-        String rawApiKey = "fb_live_" + this.idGenerator.generate().replace("-", "");
+        byte[] randomBytes = new byte[32];
+        secureRandom.nextBytes(randomBytes);
+        String rawApiKey = "fb_live_" + Base64.getUrlEncoder()
+                                              .withoutPadding()
+                                              .encodeToString(randomBytes);
         Tenant tenant = new Tenant(id, name, HashUtils.sha256(rawApiKey));
         this.tenantRepository.save(tenant);
         return new TenantResponse(id, name, rawApiKey);
@@ -34,6 +41,9 @@ class TenantServiceImpl implements TenantService {
     public TenantResponse getTenant(String tenantId) {
         Optional<Tenant> tenantExists = this.tenantRepository.findById(tenantId);
         if (tenantExists.isEmpty()) throw new AuthenticationException("Invalid tenant Id");
-        return new TenantResponse(tenantExists.get().id(), tenantExists.get().name(), tenantExists.get().apiKey());
+        return new TenantResponse(tenantExists.get()
+                                              .id(), tenantExists.get()
+                                                                 .name(), tenantExists.get()
+                                                                                      .apiKey());
     }
 }

@@ -7,12 +7,15 @@ import org.springframework.data.redis.connection.RedisConnection;
 import org.springframework.data.redis.core.Cursor;
 import org.springframework.data.redis.core.ScanOptions;
 import org.springframework.data.redis.core.StringRedisTemplate;
+import org.springframework.data.redis.core.script.DefaultRedisScript;
 import org.springframework.stereotype.Service;
 import tools.jackson.databind.ObjectMapper;
 
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Collections;
 import java.util.List;
 
 @Service
@@ -99,12 +102,17 @@ class RedisCacheService implements CacheService {
     
     @Override
     public void releaseLock(String lockKey, String lockValue) {
+        String script = 
+            "if redis.call('get', KEYS[1]) == ARGV[1] then " +
+            "    return redis.call('del', KEYS[1]) " +
+            "else " +
+            "    return 0 " +
+            "end";
         try {
-            String value = this.redisTemplate.opsForValue()
-                                             .get(lockKey);
-            if (lockValue.equals(value)) this.redisTemplate.delete(lockKey);
+            this.redisTemplate.execute(new DefaultRedisScript<>(script, Long.class),
+                    Collections.singletonList(lockKey), lockValue);
         } catch (Exception e) {
-            log.error("Failed to release Lock: ", e);
+            log.error("Failed to release Lock atomically: ", e);
         }
     }
 }
