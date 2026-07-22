@@ -17,8 +17,25 @@ import java.util.List;
 public class JobService {
     private final OutboxEventRepository outboxEventRepository;
     private final OutboxEventPublisherService outboxEventPublisherService;
+    private final org.springframework.data.redis.core.StringRedisTemplate redisTemplate;
     
-    public OutboxResponse publishJob(String eventType, Object payload, String tenantId) {
+    public OutboxResponse publishJob(String eventType, Object payload, String tenantId, String idempotencyKey) {
+        if (idempotencyKey != null && !idempotencyKey.isBlank()) {
+            String redisKey = "idempotency:job:" + tenantId + ":" + idempotencyKey;
+            String tempId = java.util.UUID.randomUUID().toString();
+            
+            Boolean success = redisTemplate.opsForValue().setIfAbsent(redisKey, tempId, java.time.Duration.ofHours(24));
+            if (Boolean.FALSE.equals(success)) {
+                // Key already exists. Retrieve stored outbox event response details
+                String existingJobId = redisTemplate.opsForValue().get(redisKey);
+                return this.getJobDetails(existingJobId, tenantId);
+            }
+            
+            OutboxEvent event = this.outboxEventPublisherService.publish(tenantId, eventType, payload);
+            redisTemplate.opsForValue().set(redisKey, event.id(), java.time.Duration.ofHours(24));
+            return OutboxResponse.from(event);
+        }
+        
         OutboxEvent event = this.outboxEventPublisherService.publish(tenantId, eventType, payload);
         return OutboxResponse.from(event);
     }

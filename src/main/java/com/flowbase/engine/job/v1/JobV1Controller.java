@@ -37,7 +37,14 @@ class JobV1Controller {
     }
 
     @PostMapping("/publish")
-    public ResponseEntity<OutboxResponse> publishJob(@RequestBody PublishJobRequest request) {
-        return ResponseEntity.status(201).body(this.jobService.publishJob(request.eventType(), request.payload(), TenantContext.get()));
+    public ResponseEntity<OutboxResponse> publishJob(
+            @RequestBody PublishJobRequest request,
+            @org.springframework.web.bind.annotation.RequestHeader(name = "X-Idempotency-Key", required = false) String idempotencyKey) {
+        OutboxResponse res = this.jobService.publishJob(request.eventType(), request.payload(), TenantContext.get(), idempotencyKey);
+        org.springframework.http.HttpHeaders headers = new org.springframework.http.HttpHeaders();
+        if (idempotencyKey != null && !idempotencyKey.isBlank()) {
+            headers.add("X-Cache-Lookup", "HIT");
+        }
+        return new ResponseEntity<>(res, headers, org.springframework.http.HttpStatus.CREATED);
     }
 }
