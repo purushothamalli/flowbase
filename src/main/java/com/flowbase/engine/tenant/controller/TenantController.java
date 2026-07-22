@@ -36,6 +36,6 @@ public class TenantController {
     public ResponseEntity<TenantResponse> getTenant() {
         String tenantId = TenantContext.get();
         TenantResponse response = this.tenantService.getTenant(tenantId);
-        return ResponseEntity.ok(response.omitApiKey());
+        return ResponseEntity.ok(response);
     }
 }

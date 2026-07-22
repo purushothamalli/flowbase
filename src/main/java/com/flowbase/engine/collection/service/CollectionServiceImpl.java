@@ -13,6 +13,7 @@ import com.flowbase.engine.collection.exception.ValidationException;
 import com.flowbase.engine.common.service.IdGenerator;
 import com.flowbase.engine.config.TenantContext;
 import lombok.RequiredArgsConstructor;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
@@ -24,6 +25,7 @@ import java.util.Optional;
 class CollectionServiceImpl implements CollectionService {
     private final CollectionRepository collectionRepository;
     private final IdGenerator idGenerator;
+    private final JdbcTemplate jdbcTemplate;
     
     @Override
     public CollectionResponse createCollection(CreateCollectionRequest request) {
@@ -37,31 +39,33 @@ class CollectionServiceImpl implements CollectionService {
                                                 .name(request.name())
                                                 .readRule(request.readRule())
                                                 .writeRule(request.writeRule());
-        List<CollectionField> fields = new ArrayList<>();
-        for (CollectionFieldRequest fieldRequest : request.fields()) {
-            CollectionField field = new CollectionField(this.idGenerator.generate(), fieldRequest.name(), fieldRequest.type(), fieldRequest.required(), collection);
-            fields.add(field);
-        } collection.fields(fields);
-        return this.createCollectionResponse(this.collectionRepository.save(collection));
-    }
-    
-    private CollectionFieldResponse createCollectionFieldResponse(CollectionField collectionField) {
-        return new CollectionFieldResponse(collectionField.id(), collectionField.name(), collectionField.type(), collectionField.required());
-    }
-    
-    private CollectionResponse createCollectionResponse(Collection collection) {
-        List<CollectionFieldResponse> collectionFieldResponseList = collection.fields()
-                                                                              .stream()
-                                                                              .map(this::createCollectionFieldResponse)
-                                                                              .toList();
-        return new CollectionResponse(collection.id(), collection.name(), collection.readRule(),
-                collection.writeRule(), collectionFieldResponseList);
+        List<CollectionField> fields = request.
+                fields().
+                stream().
+                map(r -> new CollectionField(
+                        this.idGenerator.generate(), r.name(), r.type(), r.required(), r.indexed(), collection)
+                ).toList();
+        collection.fields(fields);
+        this.collectionRepository.save(collection);
+        for (CollectionField field : collection.fields()) {
+            if (field.indexed()) {
+                String cleanColId = collection.id().replace("-", "_");
+                String indexName = "idx_doc_col_" + cleanColId + "_" + field.name();
+                String indexSql = String.format(
+                        "CREATE INDEX IF NOT EXISTS %s ON COLLECTION_DOCUMENTS (COLLECTION_ID, (DATA->>'%s'))",
+                        indexName,
+                        field.name()
+                );
+                this.jdbcTemplate.execute(indexSql);
+            }
+        }
+        return CollectionResponse.from(collection);
     }
     
     @Override
     public List<CollectionResponse> listCollections(String tenantId) {
         List<Collection> tenantCollections = this.collectionRepository.findByTenantId(tenantId);
-        return tenantCollections.stream().map(this::createCollectionResponse).toList();
+        return tenantCollections.stream().map(CollectionResponse::from).toList();
     }
     
     @Override
@@ -70,7 +74,7 @@ class CollectionServiceImpl implements CollectionService {
         if (collectionExists.isEmpty()) throw new CollectionNotFoundException(id);
         Collection collection = collectionExists.get();
         if (!collection.tenantId().equals(TenantContext.get())) throw new CollectionNotFoundException(id);
-        return this.createCollectionResponse(collection);
+        return CollectionResponse.from(collection);
     }
     
     @Override

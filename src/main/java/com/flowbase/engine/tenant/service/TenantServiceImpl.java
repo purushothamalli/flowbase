@@ -34,16 +34,13 @@ class TenantServiceImpl implements TenantService {
                                               .encodeToString(randomBytes);
         Tenant tenant = new Tenant(id, name, HashUtils.sha256(rawApiKey));
         this.tenantRepository.save(tenant);
-        return new TenantResponse(id, name, rawApiKey);
+        return TenantResponse.from(tenant, rawApiKey);
     }
     
     @Override
     public TenantResponse getTenant(String tenantId) {
         Optional<Tenant> tenantExists = this.tenantRepository.findById(tenantId);
         if (tenantExists.isEmpty()) throw new AuthenticationException("Invalid tenant Id");
-        return new TenantResponse(tenantExists.get()
-                                              .id(), tenantExists.get()
-                                                                 .name(), tenantExists.get()
-                                                                                      .apiKey());
+        return TenantResponse.from(tenantExists.get(), "");
     }
 }

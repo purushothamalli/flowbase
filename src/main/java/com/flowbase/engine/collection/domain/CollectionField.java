@@ -1,5 +1,6 @@
 package com.flowbase.engine.collection.domain;
 
+import com.flowbase.engine.collection.dto.CollectionFieldRequest;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
@@ -30,6 +31,8 @@ public class CollectionField {
     private FieldType type;
     @Column(name = "REQUIRED")
     private boolean required;
+    @Column(name = "INDEXED")
+    private boolean indexed;
     @ManyToOne
     @JoinColumn(name = "COLLECTION_ID", nullable = false, referencedColumnName = "ID")
     private Collection collection;

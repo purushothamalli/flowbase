@@ -37,13 +37,13 @@ class CollectionDataController {
         return ResponseEntity.created(ServletUriComponentsBuilder.fromCurrentRequest()
                                                                  .path("/{id}")
                                                                  .buildAndExpand(document.id())
-                                                                 .toUri()).body(this.mapToResponse(document));
+                                                                 .toUri()).body(CollectionDocumentResponse.from(document));
     }
     
     @GetMapping("/{documentId}")
     public ResponseEntity<CollectionDocumentResponse> getDocument(@PathVariable String collectionId, @PathVariable String documentId) {
         CollectionDocument document = this.collectionDataService.getDocument(collectionId, documentId);
-        return ResponseEntity.ok(this.mapToResponse(document));
+        return ResponseEntity.ok(CollectionDocumentResponse.from(document));
     }
     
     @GetMapping
@@ -51,28 +51,25 @@ class CollectionDataController {
         Map<String, String[]> parameterMap = request.getParameterMap();
         QueryContext queryContext = this.queryParser.parse(parameterMap);
         List<CollectionDocument> collectionDocuments = this.collectionDataService.findDocumentsByCollection(collectionId, queryContext);
-        return ResponseEntity.ok(collectionDocuments.stream().map(this::mapToResponse).toList());
+        return ResponseEntity.ok(collectionDocuments.stream().map(CollectionDocumentResponse::from).toList());
     }
     
     @GetMapping("/search")
     public ResponseEntity<List<CollectionDocumentResponse>> searchDocuments(@PathVariable String collectionId, @RequestParam(name = "q") String query, @RequestParam(name = "limit", required = false, defaultValue = "20") int limit, @RequestParam(name = "offset", required = false, defaultValue = "0") int offset) {
         if (query == null || query.isBlank()) throw new ValidationException("Search query 'q' cannot be empty!");
         List<CollectionDocument> collectionDocuments = this.collectionDataService.searchDocuments(collectionId, query, limit, offset);
-        return ResponseEntity.ok(collectionDocuments.stream().map(this::mapToResponse).toList());
+        return ResponseEntity.ok(collectionDocuments.stream().map(CollectionDocumentResponse::from).toList());
     }
     
     @PatchMapping("/{documentId}")
     public ResponseEntity<CollectionDocumentResponse> updateDocument(@PathVariable String collectionId, @PathVariable String documentId, @RequestBody Map<String, Object> payload) {
         CollectionDocument updatedDocument = this.collectionDataService.updateDocument(collectionId, documentId, payload);
-        return ResponseEntity.ok(this.mapToResponse(updatedDocument));
+        return ResponseEntity.ok(CollectionDocumentResponse.from(updatedDocument));
     }
     
     @DeleteMapping("/{documentId}")
     public ResponseEntity<Void> deleteDocument(@PathVariable String collectionId, @PathVariable String documentId) {
-        this.collectionDataService.deleteDocument(collectionId, documentId); return ResponseEntity.noContent().build();
-    }
-    
-    private CollectionDocumentResponse mapToResponse(CollectionDocument document) {
-        return new CollectionDocumentResponse(document.id(), document.collectionId(), document.data(), document.createdAt(), document.updatedAt());
+        this.collectionDataService.deleteDocument(collectionId, documentId);
+        return ResponseEntity.noContent().build();
     }
 }

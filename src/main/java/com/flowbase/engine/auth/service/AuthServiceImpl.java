@@ -41,7 +41,7 @@ class AuthServiceImpl implements AuthService {
             throw new UserAlreadyExistsException("Email already registered!");
         User newUser = new User(this.idGenerator.generate(), TenantContext.get(), request.email(), this.passwordEncoder.encode(request.password()), request.role());
         this.userRepository.save(newUser);
-        return new UserResponse(newUser.id(), newUser.email(), newUser.role());
+        return UserResponse.from(newUser);
     }
     
     @Override
