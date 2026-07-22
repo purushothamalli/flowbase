@@ -8,6 +8,12 @@ import {StorageScope} from "./storageScope";
 import {JobScope} from "./JobScope";
 import {HttpClient} from "./HttpClient";
 import {QueryCache} from "./QueryCache";
+import {Logger, ConsoleLogger} from "./Logger";
+
+export interface FlowBasePlugin {
+    name: string;
+    initialize(client: FlowBaseClient): void;
+}
 
 export class FlowBaseClient {
     public readonly apiKey: string;
@@ -17,7 +23,9 @@ export class FlowBaseClient {
     public readonly realtime: RealtimeClient;
     public readonly httpClient: HttpClient;
     public readonly queryCache: QueryCache;
+    public readonly logger: Logger;
     private middlewares: Middleware[] = [];
+    private listeners: Record<string, Array<(...args: any[]) => void>> = {};
     public readonly storageTokens: TokenStorage;
     public readonly timeoutMs?: number;
     public readonly retryConfig: retryConfig;
@@ -30,6 +38,24 @@ export class FlowBaseClient {
 
     public use(middleware: Middleware): this {
         this.middlewares.push(middleware);
+        return this;
+    }
+
+    public on(event: string, callback: (...args: any[]) => void): this {
+        if (!this.listeners[event]) this.listeners[event] = [];
+        this.listeners[event].push(callback);
+        return this;
+    }
+
+    public emit(event: string, ...args: any[]): void {
+        const list = this.listeners[event];
+        if (list) {
+            list.forEach(cb => cb(...args));
+        }
+    }
+
+    public registerPlugin(plugin: FlowBasePlugin): this {
+        plugin.initialize(this);
         return this;
     }
 
@@ -47,6 +73,7 @@ export class FlowBaseClient {
         this.retryConfig = config.retry || {maxRetries: 3, retryStatusCodes: [429, 502, 503, 504]};
         this.httpClient = new HttpClient(this);
         this.queryCache = new QueryCache();
+        this.logger = (config as any).logger || new ConsoleLogger();
         this.auth = new AuthManager(this);
         this.storage = new StorageScope(this.auth);
         this.jobs = new JobScope(this.auth);

@@ -52,6 +52,7 @@ export class HttpClient {
                     await this.sleep(delay);
                     continue;
                 }
+                this.client.emit("error", err);
                 throw err;
             }
         }

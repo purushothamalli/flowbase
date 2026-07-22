@@ -31,6 +31,7 @@ class AuthManager {
         });
         this.token = response.accessToken;
         this.storage.setItem(this.STORAGE_ACCESS_TOKEN_KEY, response.accessToken);
+        this.client.emit("login", response);
         return response;
     }
     async register(email, password, role = "DEVELOPER") {
@@ -48,6 +49,7 @@ class AuthManager {
         this.storage.removeItem(this.STORAGE_ACCESS_TOKEN_KEY);
         this.refreshToken = null;
         this.storage.removeItem(this.STORAGE_REFRESH_TOKEN_KEY);
+        this.client.emit("logout");
     }
     async refresh() {
         const headers = {};
@@ -86,10 +88,12 @@ class AuthManager {
             this.token = res.accessToken;
             this.storage.setItem(this.STORAGE_ACCESS_TOKEN_KEY, res.accessToken);
             this.refreshQueue.forEach(cb => cb(res.accessToken));
+            this.client.emit("refresh", res.accessToken);
             return res.accessToken;
         }
         catch (e) {
             this.refreshQueue.forEach(cb => cb(""));
+            this.client.emit("error", e);
             throw e;
         }
         finally {
